@@ -204,7 +204,7 @@ def create_app() -> FastAPI:
         agent = ResearchAgent(state.store, mode="self_verify")
         results = run_regression_cases(
             SAMPLE_EVAL_CASES,
-            lambda case: _answer_for_eval(agent, case.question),
+            lambda case: _answer_for_eval(agent, case.question, case.filters),
         )
         pass_rate = sum(1 for result in results if result["passed"]) / max(len(results), 1)
         mode_results = _evaluate_modes(state)
@@ -289,8 +289,10 @@ def _agent_response_payload(response: AgentResponse) -> dict[str, object]:
     }
 
 
-def _answer_for_eval(agent: ResearchAgent, question: str) -> tuple[str, list[str], list[str]]:
-    response = agent.answer(question)
+def _answer_for_eval(
+    agent: ResearchAgent, question: str, filters: dict[str, str] | None
+) -> tuple[str, list[str], list[str]]:
+    response = agent.answer(question, filters=filters)
     return (
         response.answer,
         [result.chunk.chunk_id for result in response.retrieved_chunks],
@@ -312,7 +314,7 @@ def _evaluate_modes(state: AppState) -> list[dict[str, object]]:
         agent = ResearchAgent(state.store, mode=mode)
         for case in SAMPLE_EVAL_CASES:
             started = perf_counter()
-            response = agent.answer(case.question)
+            response = agent.answer(case.question, filters=case.filters)
             latencies.append(round((perf_counter() - started) * 1_000, 4))
             retrieved_ids = [result.chunk.chunk_id for result in response.retrieved_chunks]
             evidence = [result.chunk.text for result in response.retrieved_chunks]
