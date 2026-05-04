@@ -23,10 +23,10 @@ from finetuning.make_lora_dataset import make_lora_records
 from finetuning.make_raft_dataset import make_raft_examples
 from finetuning.train_lora import simulate_lora_training
 from ingestion.chunker import chunk_document
-from ingestion.document_cleaner import clean_text
 from ingestion.metadata import Document, DocumentMetadata
 from ingestion.sec_loader import load_sec_filing
 from ingestion.sec_url_loader import load_sec_filing_url
+from ingestion.upload_loader import UploadedFileError, extract_upload_text
 from observability.structured_logger import StructuredLogger
 from retrieval.chroma_store import ChromaVectorStore
 from retrieval.embeddings import HashEmbeddingModel
@@ -103,13 +103,20 @@ def create_app() -> FastAPI:
         filing_date: Annotated[str, Form(min_length=4, max_length=32)],
         file: Annotated[UploadFile, File()],
     ) -> ApiResponse:
-        if file.content_type not in {"text/plain", "application/octet-stream"}:
-            raise HTTPException(status_code=415, detail="Only plain text uploads are supported")
         content = await file.read()
         if len(content) > 10 * 1024 * 1024:
             raise HTTPException(status_code=413, detail="Upload exceeds 10 MB limit")
+        try:
+            text = extract_upload_text(
+                filename=file.filename,
+                content_type=file.content_type,
+                content=content,
+            )
+        except UploadedFileError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+
         document = Document(
-            text=clean_text(content.decode("utf-8")),
+            text=text,
             metadata=DocumentMetadata(
                 ticker=ticker.upper(),
                 company=company,

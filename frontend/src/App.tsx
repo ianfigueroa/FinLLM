@@ -237,10 +237,10 @@ export function App() {
         </div>
         <div className="ingest-grid upload-grid">
           <label className="url-field">
-            <span>Text filing</span>
+            <span>Text or PDF filing</span>
             <input
               type="file"
-              accept=".txt,text/plain"
+              accept=".txt,.text,.pdf,text/plain,application/pdf"
               onChange={(event) => setUploadFile(event.target.files?.[0] ?? null)}
             />
           </label>
@@ -276,7 +276,7 @@ export function App() {
           </label>
           <button
             className="secondary-action ingest-submit"
-            title="Upload text filing"
+            title="Upload text or PDF filing"
             onClick={handleUpload}
             disabled={loading === 'upload' || !uploadFile}
           >
