@@ -7,7 +7,8 @@ import {
   Link2,
   Play,
   Send,
-  ShieldCheck
+  ShieldCheck,
+  Upload
 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 
@@ -34,6 +35,15 @@ const MODES = [
   { id: 'self_verify', label: 'Verify' }
 ]
 
+const LOADING_LABELS: Record<string, string> = {
+  ingest: 'Indexing',
+  'sec-url': 'Indexing SEC',
+  upload: 'Uploading',
+  chat: 'Researching',
+  eval: 'Evaluating',
+  raft: 'Generating'
+}
+
 export function App() {
   const [question, setQuestion] = useState(SAMPLE_QUESTIONS[0])
   const [mode, setMode] = useState('rag_rerank')
@@ -56,7 +66,7 @@ export function App() {
     filing_date: '2026-01-01'
   })
   const [uploadFile, setUploadFile] = useState<File | null>(null)
-  const [ingestedSource, setIngestedSource] = useState('')
+  const [lastSource, setLastSource] = useState('No source indexed')
   const [loading, setLoading] = useState('')
   const [error, setError] = useState('')
   const [latencyMs, setLatencyMs] = useState(0)
@@ -70,19 +80,32 @@ export function App() {
     return chat.retrieved_chunks.find((chunk) => chunk.chunk_id === selectedCitation.chunk_id) ?? null
   }, [chat, selectedCitation])
 
-  const verificationLabel = chat
+  const isBusy = Boolean(loading)
+  const canIndexSec = Boolean(
+    secForm.url.trim() &&
+      secForm.ticker.trim() &&
+      secForm.company.trim() &&
+      secForm.form_type.trim() &&
+      secForm.filing_date.trim()
+  )
+  const canUpload = Boolean(
+    uploadFile &&
+      uploadForm.ticker.trim() &&
+      uploadForm.company.trim() &&
+      uploadForm.form_type.trim() &&
+      uploadForm.filing_date.trim()
+  )
+  const citationStatus = chat
     ? chat.verification.passed
-      ? 'Verified'
+      ? 'Pass'
       : 'Review'
     : 'Pending'
-
-  const confidence = chat ? `${Math.round(chat.confidence * 100)}%` : '0%'
 
   async function handleIngest() {
     await runAction('ingest', async () => {
       const result = await ingestSample()
-      setStatus({ chunks_indexed: result.chunks_indexed })
-      setIngestedSource('ACME sample indexed')
+      setStatus(await getIngestionStatus())
+      setLastSource(`ACME sample · ${result.chunks_indexed} chunks`)
     })
   }
 
@@ -90,7 +113,7 @@ export function App() {
     await runAction('sec-url', async () => {
       const result = await ingestSecUrl(secForm)
       setStatus(await getIngestionStatus())
-      setIngestedSource(`${result.ticker ?? secForm.ticker.toUpperCase()} indexed`)
+      setLastSource(`${result.ticker ?? secForm.ticker.toUpperCase()} SEC filing`)
     })
   }
 
@@ -99,7 +122,7 @@ export function App() {
     await runAction('upload', async () => {
       const result = await uploadDocument({ ...uploadForm, file: uploadFile })
       setStatus(await getIngestionStatus())
-      setIngestedSource(`${result.ticker ?? uploadForm.ticker.toUpperCase()} uploaded`)
+      setLastSource(`${result.ticker ?? uploadForm.ticker.toUpperCase()} upload`)
     })
   }
 
@@ -139,207 +162,124 @@ export function App() {
 
   return (
     <main className="workspace">
-      <header className="topbar">
-        <div className="brand-block">
+      <header className="app-header">
+        <div>
           <p className="eyebrow">FinLLM</p>
-          <h1>Research Workbench</h1>
-          <span>Grounded answers over filings, with inspectable evidence.</span>
+          <h1>Research Agent</h1>
         </div>
-        <div className="actions">
-          <button
-            className="secondary-action"
-            title="Index sample filing"
-            onClick={handleIngest}
-            disabled={loading === 'ingest'}
-          >
+        <div className="header-actions">
+          <StatusPill label={isBusy ? LOADING_LABELS[loading] : 'Ready'} />
+          <button onClick={handleIngest} disabled={isBusy} title="Index ACME sample filing">
             <Database size={16} /> Index sample
           </button>
-          <button
-            className="secondary-action"
-            title="Run evaluation"
-            onClick={handleEval}
-            disabled={loading === 'eval'}
-          >
+          <button onClick={handleEval} disabled={isBusy} title="Run local evals">
             <BarChart3 size={16} /> Run eval
           </button>
-          <button
-            className="secondary-action"
-            title="Generate RAFT experiment"
-            onClick={handleRaft}
-            disabled={loading === 'raft'}
-          >
+          <button onClick={handleRaft} disabled={isBusy} title="Generate RAFT examples">
             <FileSearch size={16} /> RAFT
           </button>
         </div>
       </header>
 
-      {error && <div className="error">{error}</div>}
+      {error && <div className="notice error">{error}</div>}
 
-      <section className="metrics-strip">
-        <Metric icon={<Database size={17} />} label="Indexed" value={status.chunks_indexed} />
-        <Metric icon={<Clock3 size={17} />} label="Latency" value={`${latencyMs} ms`} />
-        <Metric icon={<ShieldCheck size={17} />} label="Citation check" value={verificationLabel} />
-        <Metric icon={<BarChart3 size={17} />} label="Confidence" value={confidence} />
+      <section className="summary-grid" aria-label="Research status">
+        <Metric icon={<Database size={16} />} label="Corpus" value={`${status.chunks_indexed} chunks`} />
+        <Metric icon={<Clock3 size={16} />} label="Latency" value={`${latencyMs} ms`} />
+        <Metric icon={<ShieldCheck size={16} />} label="Citations" value={citationStatus} />
+        <Metric icon={<BarChart3 size={16} />} label="Confidence" value={chat ? `${Math.round(chat.confidence * 100)}%` : '0%'} />
       </section>
 
-      <section className="ingest-panel">
-        <div className="ingest-heading">
-          <div>
-            <h2>Document ingestion</h2>
-            <p>SEC archive source and filing metadata.</p>
-          </div>
-          <span>{ingestedSource || 'SEC URLs only'}</span>
-        </div>
-        <div className="ingest-grid">
-          <label className="url-field">
-            <span>SEC filing URL</span>
-            <input
-              value={secForm.url}
-              onChange={(event) => setSecForm({ ...secForm, url: event.target.value })}
-            />
-          </label>
-          <label>
-            <span>Ticker</span>
-            <input
-              value={secForm.ticker}
-              onChange={(event) => setSecForm({ ...secForm, ticker: event.target.value })}
-            />
-          </label>
-          <label>
-            <span>Company</span>
-            <input
-              value={secForm.company}
-              onChange={(event) => setSecForm({ ...secForm, company: event.target.value })}
-            />
-          </label>
-          <label>
-            <span>Form</span>
-            <input
-              value={secForm.form_type}
-              onChange={(event) => setSecForm({ ...secForm, form_type: event.target.value })}
-            />
-          </label>
-          <label>
-            <span>Filing date</span>
-            <input
-              value={secForm.filing_date}
-              onChange={(event) => setSecForm({ ...secForm, filing_date: event.target.value })}
-            />
-          </label>
-          <button
-            className="primary-action ingest-submit"
-            title="Index SEC filing URL"
-            onClick={handleSecUrlIngest}
-            disabled={loading === 'sec-url' || !secForm.url.trim()}
-          >
-            <Link2 size={16} /> Index SEC URL
-          </button>
-        </div>
-        <div className="ingest-grid upload-grid">
-          <label className="url-field">
-            <span>Text or PDF filing</span>
-            <input
-              type="file"
-              accept=".txt,.text,.pdf,text/plain,application/pdf"
-              onChange={(event) => setUploadFile(event.target.files?.[0] ?? null)}
-            />
-          </label>
-          <label>
-            <span>Ticker</span>
-            <input
-              value={uploadForm.ticker}
-              onChange={(event) => setUploadForm({ ...uploadForm, ticker: event.target.value })}
-            />
-          </label>
-          <label>
-            <span>Company</span>
-            <input
-              value={uploadForm.company}
-              onChange={(event) => setUploadForm({ ...uploadForm, company: event.target.value })}
-            />
-          </label>
-          <label>
-            <span>Form</span>
-            <input
-              value={uploadForm.form_type}
-              onChange={(event) => setUploadForm({ ...uploadForm, form_type: event.target.value })}
-            />
-          </label>
-          <label>
-            <span>Filing date</span>
-            <input
-              value={uploadForm.filing_date}
-              onChange={(event) =>
-                setUploadForm({ ...uploadForm, filing_date: event.target.value })
-              }
-            />
-          </label>
-          <button
-            className="secondary-action ingest-submit"
-            title="Upload text or PDF filing"
-            onClick={handleUpload}
-            disabled={loading === 'upload' || !uploadFile}
-          >
-            <Database size={16} /> Upload text
-          </button>
-        </div>
-      </section>
-
-      <section className="layout">
-        <div className="primary-panel">
-          <div className="query-header">
-            <div>
-              <h2>Query</h2>
-              <p>Mode controls retrieval and verification depth.</p>
+      <section className="app-grid">
+        <aside className="source-column">
+          <PanelTitle title="Sources" detail={lastSource} />
+          <div className="source-block">
+            <label className="field full">
+              <span>SEC URL</span>
+              <input
+                value={secForm.url}
+                onChange={(event) => setSecForm({ ...secForm, url: event.target.value })}
+              />
+            </label>
+            <div className="field-row compact">
+              <TextField label="Ticker" value={secForm.ticker} onChange={(ticker) => setSecForm({ ...secForm, ticker })} />
+              <TextField label="Form" value={secForm.form_type} onChange={(form_type) => setSecForm({ ...secForm, form_type })} />
             </div>
-            <div className="mode-toggle" role="group" aria-label="Research mode">
-              {MODES.map((option) => (
-                <button
-                  key={option.id}
-                  className={mode === option.id ? 'active' : ''}
-                  onClick={() => setMode(option.id)}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <textarea value={question} onChange={(event) => setQuestion(event.target.value)} />
-
-          <div className="query-footer">
-            <div className="sample-row">
-              {SAMPLE_QUESTIONS.map((sample) => (
-                <button key={sample} onClick={() => setQuestion(sample)}>
-                  <Play size={13} /> {sample}
-                </button>
-              ))}
-            </div>
-            <button
-              className="primary-action"
-              title="Submit research query"
-              onClick={handleAsk}
-              disabled={loading === 'chat' || !question.trim()}
-            >
-              <Send size={16} /> Submit
+            <TextField label="Company" value={secForm.company} onChange={(company) => setSecForm({ ...secForm, company })} />
+            <TextField label="Filing date" value={secForm.filing_date} onChange={(filing_date) => setSecForm({ ...secForm, filing_date })} />
+            <button className="primary-action full-button" onClick={handleSecUrlIngest} disabled={isBusy || !canIndexSec}>
+              <Link2 size={16} /> Index SEC filing
             </button>
           </div>
 
-          <section className="answer">
-            <div className="section-heading">
-              <h2>Response</h2>
-              <span>{chat?.mode ?? mode}</span>
+          <div className="source-block">
+            <label className="field full">
+              <span>Upload</span>
+              <input
+                type="file"
+                accept=".txt,.text,.pdf,text/plain,application/pdf"
+                onChange={(event) => setUploadFile(event.target.files?.[0] ?? null)}
+              />
+            </label>
+            <div className="file-name">{uploadFile?.name ?? 'No file selected'}</div>
+            <div className="field-row compact">
+              <TextField label="Ticker" value={uploadForm.ticker} onChange={(ticker) => setUploadForm({ ...uploadForm, ticker })} />
+              <TextField label="Form" value={uploadForm.form_type} onChange={(form_type) => setUploadForm({ ...uploadForm, form_type })} />
             </div>
-            <pre>{chat?.answer ?? 'Index the sample filing, then submit a research question.'}</pre>
+            <TextField label="Company" value={uploadForm.company} onChange={(company) => setUploadForm({ ...uploadForm, company })} />
+            <TextField label="Filing date" value={uploadForm.filing_date} onChange={(filing_date) => setUploadForm({ ...uploadForm, filing_date })} />
+            <button className="secondary-action full-button" onClick={handleUpload} disabled={isBusy || !canUpload}>
+              <Upload size={16} /> Upload filing
+            </button>
+          </div>
+        </aside>
+
+        <section className="research-column">
+          <div className="query-panel">
+            <div className="query-bar">
+              <PanelTitle title="Question" detail={modeLabel(mode)} />
+              <div className="mode-toggle" role="group" aria-label="Research mode">
+                {MODES.map((option) => (
+                  <button
+                    key={option.id}
+                    className={mode === option.id ? 'active' : ''}
+                    onClick={() => setMode(option.id)}
+                    disabled={isBusy}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <textarea value={question} onChange={(event) => setQuestion(event.target.value)} />
+
+            <div className="query-actions">
+              <div className="sample-row">
+                {SAMPLE_QUESTIONS.map((sample) => (
+                  <button key={sample} onClick={() => setQuestion(sample)} disabled={isBusy}>
+                    <Play size={13} /> {sample}
+                  </button>
+                ))}
+              </div>
+              <button className="primary-action submit-button" onClick={handleAsk} disabled={isBusy || !question.trim()}>
+                <Send size={16} /> Submit
+              </button>
+            </div>
+          </div>
+
+          <section className="answer-panel">
+            <PanelTitle title="Response" detail={chat?.mode ?? modeLabel(mode)} />
+            <pre>{chat?.answer ?? 'No response yet.'}</pre>
             {chat && (
-              <div className="citation-row">
+              <div className="citation-strip" aria-label="Citations">
                 {chat.citations.map((citation) => (
                   <button
                     key={citation.marker}
                     className={selectedCitation?.marker === citation.marker ? 'active' : ''}
                     onClick={() => setSelectedCitation(citation)}
                   >
-                    {citation.marker}
+                    <strong>{citation.marker}</strong>
                     <span>{citation.section ?? citation.ticker ?? 'Source'}</span>
                   </button>
                 ))}
@@ -347,100 +287,97 @@ export function App() {
             )}
           </section>
 
-          <section className="chunks">
-            <div className="section-heading">
-              <h2>Retrieved Evidence</h2>
-              <span>{chat?.retrieved_chunks.length ?? 0} chunks</span>
-            </div>
-            {chat?.retrieved_chunks.map((chunk) => (
-              <article key={chunk.chunk_id} className="chunk-row">
-                <div>
-                  <strong>{chunk.metadata.ticker} · {chunk.metadata.section ?? 'Unknown section'}</strong>
-                  <span>{chunk.chunk_id} · score {chunk.score.toFixed(3)}</span>
-                </div>
-                <p>{chunk.text}</p>
-              </article>
-            ))}
-          </section>
-        </div>
-
-        <aside className="source-panel">
-          <div className="section-heading">
-            <h2>Source</h2>
-            <span>{selectedCitation?.marker ?? 'No citation'}</span>
-          </div>
-          {selectedCitation ? (
-            <>
-              <dl>
-                <dt>Section</dt>
-                <dd>{selectedCitation.section}</dd>
-                <dt>Source</dt>
-                <dd>{selectedCitation.source}</dd>
-                <dt>Chunk</dt>
-                <dd>{selectedCitation.chunk_id}</dd>
-              </dl>
-              <p className="snippet">{selectedChunk?.text ?? selectedCitation.snippet}</p>
-            </>
-          ) : (
-              <p className="muted">Select a citation to inspect the source chunk.</p>
-          )}
-
-          <div className="section-heading compact">
-            <h2>Tool calls</h2>
-            <span>{chat?.tool_calls.length ?? 0}</span>
-          </div>
-          {chat?.tool_calls.length ? (
-            <div className="tool-list">
-              {chat.tool_calls.map((call, index) => (
-                <article key={`${call.name}-${index}`}>
+          <section className="evidence-panel">
+            <PanelTitle title="Retrieved evidence" detail={`${chat?.retrieved_chunks.length ?? 0} chunks`} />
+            <div className="evidence-list">
+              {chat?.retrieved_chunks.map((chunk) => (
+                <article key={chunk.chunk_id} className="evidence-row">
                   <div>
-                    <strong>{call.name}</strong>
-                    <span>{call.ok ? 'ok' : 'failed'}</span>
+                    <strong>{chunk.metadata.ticker ?? 'DOC'} · {chunk.metadata.section ?? 'Unknown section'}</strong>
+                    <span>{chunk.chunk_id} · {chunk.score.toFixed(3)}</span>
                   </div>
-                  <code>{JSON.stringify(call.output ?? call.error)}</code>
+                  <p>{chunk.text}</p>
                 </article>
-              ))}
+              )) ?? <p className="empty-state">No evidence retrieved.</p>}
             </div>
-          ) : (
-            <p className="muted">No tools used for this response.</p>
-          )}
+          </section>
+        </section>
 
-          <div className="section-heading compact">
-            <h2>Evaluation</h2>
-            <CheckCircle2 size={16} />
-          </div>
-          <div className="eval-box">
-            <span>Regression pass rate</span>
-            <strong>{evalSummary ? `${Math.round(evalSummary.regression_pass_rate * 100)}%` : 'Not run'}</strong>
-          </div>
-          <div className="eval-box">
-            <span>Citation check</span>
-            <strong>{chat ? (chat.verification.passed ? 'Pass' : 'Review') : 'Waiting'}</strong>
-          </div>
-          <div className="eval-box">
-            <span>Estimated cost</span>
-            <strong>$0.00 local</strong>
-          </div>
-          {evalSummary?.mode_results.map((result) => (
-            <div className="mode-result" key={result.mode}>
-              <strong>{result.mode}</strong>
-              <span>retrieval {Math.round(result.retrieval_precision * 100)}%</span>
-              <span>cite {Math.round(result.citation_correctness * 100)}%</span>
-              <span>{result.avg_latency_ms.toFixed(1)} ms</span>
-            </div>
-          ))}
-          {raftSummary && (
-            <div className="mode-result">
-              <strong>RAFT / LoRA</strong>
-              <span>{raftSummary.raft_examples} examples</span>
-              <span>{raftSummary.lora_records} records</span>
-              <span>{String(raftSummary.training_report.status)}</span>
-            </div>
-          )}
-          <p className="muted">{chat?.disclaimer ?? 'Research outputs are not financial advice.'}</p>
+        <aside className="review-column">
+          <section className="review-panel">
+            <PanelTitle title="Citation" detail={selectedCitation?.marker ?? 'None'} />
+            {selectedCitation ? (
+              <>
+                <dl>
+                  <dt>Section</dt>
+                  <dd>{selectedCitation.section ?? 'Unknown'}</dd>
+                  <dt>Source</dt>
+                  <dd>{selectedCitation.source}</dd>
+                  <dt>Chunk</dt>
+                  <dd>{selectedCitation.chunk_id}</dd>
+                </dl>
+                <p className="snippet">{selectedChunk?.text ?? selectedCitation.snippet}</p>
+              </>
+            ) : (
+              <p className="empty-state">Select a citation.</p>
+            )}
+          </section>
+
+          <section className="review-panel">
+            <PanelTitle title="Tools" detail={`${chat?.tool_calls.length ?? 0}`} />
+            {chat?.tool_calls.length ? (
+              <div className="tool-list">
+                {chat.tool_calls.map((call, index) => (
+                  <article key={`${call.name}-${index}`}>
+                    <div>
+                      <strong>{call.name}</strong>
+                      <span>{call.ok ? 'ok' : 'failed'}</span>
+                    </div>
+                    <code>{JSON.stringify(call.output ?? call.error)}</code>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <p className="empty-state">No tool calls.</p>
+            )}
+          </section>
+
+          <section className="review-panel">
+            <PanelTitle title="Evaluation" detail={evalSummary ? 'Complete' : 'Not run'} />
+            <StatLine label="Regression" value={evalSummary ? `${Math.round(evalSummary.regression_pass_rate * 100)}%` : 'Not run'} />
+            <StatLine label="Citation check" value={citationStatus} />
+            <StatLine label="Cost" value="$0.00 local" />
+            {evalSummary?.mode_results.map((result) => (
+              <div className="mode-result" key={result.mode}>
+                <strong>{result.mode}</strong>
+                <span>retrieval {Math.round(result.retrieval_precision * 100)}%</span>
+                <span>citations {Math.round(result.citation_correctness * 100)}%</span>
+                <span>{result.avg_latency_ms.toFixed(1)} ms</span>
+              </div>
+            ))}
+            {raftSummary && (
+              <div className="mode-result">
+                <strong>RAFT / LoRA</strong>
+                <span>{raftSummary.raft_examples} examples</span>
+                <span>{raftSummary.lora_records} records</span>
+                <span>{String(raftSummary.training_report.status)}</span>
+              </div>
+            )}
+          </section>
+
+          <p className="disclaimer">{chat?.disclaimer ?? 'Research analysis only; not financial advice.'}</p>
         </aside>
       </section>
     </main>
+  )
+}
+
+function PanelTitle({ title, detail }: { title: string; detail?: string }) {
+  return (
+    <div className="panel-title">
+      <h2>{title}</h2>
+      {detail && <span>{detail}</span>}
+    </div>
   )
 }
 
@@ -452,4 +389,42 @@ function Metric({ icon, label, value }: { icon: React.ReactNode; label: string; 
       <strong>{value}</strong>
     </div>
   )
+}
+
+function TextField({
+  label,
+  value,
+  onChange
+}: {
+  label: string
+  value: string
+  onChange: (value: string) => void
+}) {
+  return (
+    <label className="field">
+      <span>{label}</span>
+      <input value={value} onChange={(event) => onChange(event.target.value)} />
+    </label>
+  )
+}
+
+function StatLine({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="stat-line">
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  )
+}
+
+function StatusPill({ label }: { label: string }) {
+  return (
+    <span className="status-pill">
+      <CheckCircle2 size={14} /> {label}
+    </span>
+  )
+}
+
+function modeLabel(mode: string) {
+  return MODES.find((option) => option.id === mode)?.label ?? mode
 }
