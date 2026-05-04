@@ -48,7 +48,8 @@ def chunk_document(
         index += 1
         if end == len(text):
             break
-        start = max(0, end - overlap_chars)
+        next_start = _align_start_to_word_boundary(text, max(0, end - overlap_chars))
+        start = next_start if next_start > start else end
 
     return chunks
 
@@ -59,6 +60,14 @@ def _section_for_chunk(text: str, fallback: str | None) -> str | None:
         if match:
             return match.group(1)
     return fallback
+
+
+def _align_start_to_word_boundary(text: str, start: int) -> int:
+    if start <= 0 or start >= len(text):
+        return start
+    while start > 0 and not text[start - 1].isspace():
+        start -= 1
+    return start
 
 
 def _chunk_id(document: Document, index: int) -> str:
