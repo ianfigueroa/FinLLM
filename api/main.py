@@ -181,9 +181,10 @@ def create_app() -> FastAPI:
     @app.post("/api/v1/chat", response_model=ApiResponse)
     def chat(request: ChatRequest) -> ApiResponse:
         started = perf_counter()
+        filters = request.filters or _infer_single_company_filter(request.question, state)
         response = ResearchAgent(state.store, mode=request.mode).answer(
             request.question,
-            filters=request.filters,
+            filters=filters,
         )
         latency_ms = round((perf_counter() - started) * 1_000, 4)
         state.logger.event(
@@ -367,6 +368,27 @@ def _missing_eval_chunks(state: AppState) -> list[str]:
         for chunk_id in case.expected_chunk_ids
     }
     return sorted(expected_ids - indexed_ids)
+
+
+def _infer_single_company_filter(question: str, state: AppState) -> dict[str, str] | None:
+    normalized_question = question.lower()
+    matches: set[str] = set()
+    for chunk in state.store.all_chunks():
+        ticker = (chunk.metadata.ticker or "").upper()
+        company = (chunk.metadata.company or "").lower()
+        if not ticker:
+            continue
+        if _mentions_ticker(normalized_question, ticker) or (
+            company and company in normalized_question
+        ):
+            matches.add(ticker)
+    if len(matches) != 1:
+        return None
+    return {"ticker": next(iter(matches))}
+
+
+def _mentions_ticker(normalized_question: str, ticker: str) -> bool:
+    return f" {ticker.lower()} " in f" {normalized_question} "
 
 
 def _average(values: list[float]) -> float:
