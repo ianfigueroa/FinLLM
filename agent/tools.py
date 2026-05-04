@@ -180,6 +180,52 @@ class BacktestTool(BaseTool):
             return ToolResult(ok=False, error=str(exc))
 
 
+class PythonAnalysisTool(BaseTool):
+    name = "python_analysis"
+    description = "Run a narrow Python subset for simple list and arithmetic analysis."
+    input_schema = {
+        "type": "object",
+        "required": ["code"],
+        "properties": {"code": {"type": "string", "maxLength": 1_000}},
+    }
+
+    _allowed_nodes = (
+        ast.Module,
+        ast.Assign,
+        ast.Expr,
+        ast.Name,
+        ast.Load,
+        ast.Store,
+        ast.Constant,
+        ast.List,
+        ast.Tuple,
+        ast.Dict,
+        ast.BinOp,
+        ast.UnaryOp,
+        ast.Subscript,
+        ast.Slice,
+        ast.Call,
+        ast.Add,
+        ast.Sub,
+        ast.Mult,
+        ast.Div,
+        ast.Pow,
+        ast.USub,
+    )
+    _allowed_functions = {"sum": sum, "min": min, "max": max, "len": len, "round": round}
+
+    def run(self, payload: dict[str, Any]) -> ToolResult:
+        code = str(payload.get("code", ""))
+        try:
+            tree = ast.parse(code, mode="exec")
+            _validate_python_subset(tree, self._allowed_nodes, set(self._allowed_functions))
+            namespace: dict[str, Any] = {}
+            exec(compile(tree, "<finllm-python-analysis>", "exec"), {"__builtins__": self._allowed_functions}, namespace)
+            return ToolResult(ok=True, output=namespace.get("result"))
+        except (SyntaxError, ValueError, TypeError, ZeroDivisionError) as exc:
+            return ToolResult(ok=False, error=str(exc))
+
+
 def _eval_arithmetic(node: ast.AST, operators: dict[type[ast.AST], Any]) -> float:
     if isinstance(node, ast.Constant) and isinstance(node.value, int | float):
         return node.value
@@ -218,3 +264,17 @@ def _metadata_row(row: dict[str, Any]) -> dict[str, Any]:
         "section": row.get("section"),
         "source": row.get("source"),
     }
+
+
+def _validate_python_subset(
+    tree: ast.AST,
+    allowed_nodes: tuple[type[ast.AST], ...],
+    allowed_functions: set[str],
+) -> None:
+    for node in ast.walk(tree):
+        if not isinstance(node, allowed_nodes):
+            raise ValueError(f"unsupported python syntax: {type(node).__name__}")
+        if isinstance(node, ast.Call) and not (
+            isinstance(node.func, ast.Name) and node.func.id in allowed_functions
+        ):
+            raise ValueError("unsupported python function call")
