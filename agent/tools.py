@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ast
 import operator
+import sqlite3
 from dataclasses import dataclass
 from typing import Any
 
@@ -91,6 +92,94 @@ class FinancialRatioTool(BaseTool):
             return ToolResult(ok=False, error=str(exc))
 
 
+class SQLMetadataTool(BaseTool):
+    name = "metadata_sql"
+    description = "Run read-only SQL over indexed document metadata."
+    input_schema = {
+        "type": "object",
+        "required": ["query"],
+        "properties": {"query": {"type": "string", "maxLength": 1_000}},
+    }
+
+    def __init__(self, rows: list[dict[str, Any]]) -> None:
+        self._rows = rows
+
+    def run(self, payload: dict[str, Any]) -> ToolResult:
+        query = str(payload.get("query", "")).strip()
+        if not _is_read_only_select(query):
+            return ToolResult(ok=False, error="metadata_sql is read-only and only accepts SELECT queries")
+
+        connection = sqlite3.connect(":memory:")
+        connection.row_factory = sqlite3.Row
+        try:
+            connection.execute(
+                "CREATE TABLE documents (ticker TEXT, company TEXT, form_type TEXT, filing_date TEXT, section TEXT, source TEXT)"
+            )
+            connection.executemany(
+                "INSERT INTO documents VALUES (:ticker, :company, :form_type, :filing_date, :section, :source)",
+                [_metadata_row(row) for row in self._rows],
+            )
+            rows = connection.execute(query).fetchall()
+            return ToolResult(ok=True, output=[dict(row) for row in rows])
+        except sqlite3.Error as exc:
+            return ToolResult(ok=False, error="metadata query failed")
+        finally:
+            connection.close()
+
+
+class MarketDataTool(BaseTool):
+    name = "market_data"
+    description = "Return cached local market prices for a ticker."
+    input_schema = {
+        "type": "object",
+        "required": ["ticker"],
+        "properties": {"ticker": {"type": "string", "maxLength": 12}},
+    }
+
+    def __init__(self, prices_by_ticker: dict[str, list[dict[str, float | str]]]) -> None:
+        self._prices_by_ticker = {ticker.upper(): prices for ticker, prices in prices_by_ticker.items()}
+
+    def run(self, payload: dict[str, Any]) -> ToolResult:
+        ticker = str(payload.get("ticker", "")).upper()
+        prices = self._prices_by_ticker.get(ticker)
+        if prices is None:
+            return ToolResult(ok=False, error=f"no cached market data for {ticker}")
+        return ToolResult(ok=True, output={"ticker": ticker, "prices": prices})
+
+
+class BacktestTool(BaseTool):
+    name = "simple_backtest"
+    description = "Backtest a long-only threshold strategy using local prices and dated scores."
+    input_schema = {
+        "type": "object",
+        "required": ["prices", "signals", "threshold"],
+        "properties": {
+            "prices": {"type": "array"},
+            "signals": {"type": "array"},
+            "threshold": {"type": "number"},
+        },
+    }
+
+    def run(self, payload: dict[str, Any]) -> ToolResult:
+        try:
+            prices = payload["prices"]
+            signals = {signal["date"]: float(signal["score"]) for signal in payload["signals"]}
+            threshold = float(payload["threshold"])
+            cumulative_return = 0.0
+            trades = 0
+            for current, following in zip(prices, prices[1:], strict=False):
+                if signals.get(current["date"], 0.0) < threshold:
+                    continue
+                cumulative_return += (following["close"] - current["close"]) / current["close"]
+                trades += 1
+            return ToolResult(
+                ok=True,
+                output={"cumulative_return": cumulative_return, "trades": trades},
+            )
+        except (KeyError, TypeError, ValueError, ZeroDivisionError) as exc:
+            return ToolResult(ok=False, error=str(exc))
+
+
 def _eval_arithmetic(node: ast.AST, operators: dict[type[ast.AST], Any]) -> float:
     if isinstance(node, ast.Constant) and isinstance(node.value, int | float):
         return node.value
@@ -112,3 +201,20 @@ def _positive_denominator(payload: dict[str, Any], field: str) -> float:
     if value == 0:
         raise ValueError(f"{field} must be non-zero")
     return float(value)
+
+
+def _is_read_only_select(query: str) -> bool:
+    normalized = query.rstrip(";").strip().lower()
+    blocked = ["insert", "update", "delete", "drop", "alter", "pragma", "attach", "detach"]
+    return normalized.startswith("select ") and not any(word in normalized.split() for word in blocked)
+
+
+def _metadata_row(row: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "ticker": row.get("ticker"),
+        "company": row.get("company"),
+        "form_type": row.get("form_type"),
+        "filing_date": row.get("filing_date"),
+        "section": row.get("section"),
+        "source": row.get("source"),
+    }
