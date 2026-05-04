@@ -1,44 +1,41 @@
 # FinLLM Research Agent
 
-FinLLM Research Agent is a retrieval-augmented financial research platform for cited answers, tool-backed analysis, and hallucination/citation evaluation. It is offline-capable by default: deterministic embeddings keep tests reproducible without paid APIs, and Chroma can be enabled for persistent local vector storage.
+FinLLM Research Agent is a local financial research workbench. It ingests filings and other financial documents, retrieves evidence, answers with citations, runs a few analysis tools, and scores whether answers are grounded in the retrieved text.
 
-## What It Builds Toward
+This is not meant to be a shiny chatbot. The useful part is the pipeline around the model: ingestion, chunk metadata, retrieval, citation checks, tool traces, latency/cost tracking, and regression evals.
 
-Research question:
+## Current Status
 
-> How do vanilla RAG, Self-RAG-style critique, RAFT-style training data, and optional LoRA fine-tuning compare for financial research tasks in citation faithfulness, answer accuracy, latency, and cost?
+The project is a working local MVP. It can:
 
-Core modes:
+- ingest the bundled sample filing;
+- ingest SEC archive URLs, including `sec.gov/ix?doc=...` links;
+- upload `.txt` files and text-based `.pdf` filings;
+- retrieve chunks with metadata;
+- answer with citations that can be inspected in the UI;
+- compare basic RAG, RAG with reranking, and self-verification mode;
+- run calculator, metadata SQL, local market data, simple backtest, ratio, and restricted Python-analysis tools;
+- generate RAFT-style examples and simulated LoRA reports;
+- run local evals for retrieval precision, citation correctness, hallucination proxy, relevance, latency, cost, and tool success.
 
-1. Basic RAG.
-2. RAG with reranking.
-3. RAG with self-verification and critique.
-4. RAFT-style dataset generation with optional fine-tuning hooks.
+The deliberately honest limits:
 
-## Architecture
+- the answer writer is conservative and extractive, not a hosted production LLM;
+- Self-RAG is implemented as a local verification/critique pass, not a trained Self-RAG model;
+- LoRA training is simulated unless you wire in real compute;
+- scanned/image-only PDFs need OCR first;
+- the eval set is small and local, not an expert-labeled benchmark.
 
-```text
-ingestion/     document loading, cleaning, chunking, metadata
-retrieval/     embeddings, vector storage, hybrid search, reranking, citations
-agent/         controlled workflow, tools, prompts, verifier, memory
-evals/         retrieval, citation, faithfulness, cost, latency regression checks
-finetuning/    RAFT and LoRA dataset generation plus simulated training reports
-api/           FastAPI app with chat, upload, eval, and ingestion status endpoints
-frontend/      React + TypeScript research UI with citations and dashboards
-infra/         Docker Compose and deployment notes
-reports/       research report and eval result summaries
-tests/         unit and integration coverage
-```
+## Running Locally
 
-## Local Setup
+Backend:
 
 ```powershell
 python -m venv .venv
 . .venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
 python -m pip install -e ".[dev]"
-python -m pytest
-uvicorn api.main:app --reload
+py -3 -m uvicorn api.main:app --host 127.0.0.1 --port 8010
 ```
 
 Frontend:
@@ -46,49 +43,66 @@ Frontend:
 ```powershell
 cd frontend
 npm install
-npm run dev
-```
-
-The API defaults to deterministic local embeddings and an in-memory vector store for reproducible tests. Set `FINLLM_VECTOR_BACKEND=chroma` and `FINLLM_STORAGE_DIR=storage/chroma` for persistent local vector storage.
-
-## API Workflow
-
-Start the backend:
-
-```powershell
-uvicorn api.main:app --reload --host 127.0.0.1 --port 8000
-```
-
-If another local project already owns port `8000`, use a different API port and point Vite at it:
-
-```powershell
-py -3 -m uvicorn api.main:app --host 127.0.0.1 --port 8010
-cd frontend
 $env:VITE_API_BASE="http://127.0.0.1:8010"
 npm run dev -- --host 127.0.0.1 --port 5180 --strictPort
 ```
 
-Useful endpoints:
+Open `http://127.0.0.1:5180`.
 
-- `POST /api/v1/ingestions/sample` indexes the bundled Acme 10-K sample.
-- `POST /api/v1/ingestions/sec-url` fetches and indexes an SEC archive filing URL.
-- `POST /api/v1/documents/upload` indexes a plain-text filing or transcript with metadata.
-- `POST /api/v1/chat` answers with citations and retrieved chunks.
-- `POST /api/v1/evals` runs the local regression harness.
-- `POST /api/v1/finetuning/raft` generates RAFT examples and simulated LoRA reports.
-- `GET /api/v1/ingestions/status` returns indexed chunk count.
+Port `8000` is common enough to collide with other local projects, so `8010` is the safer default for manual runs.
 
-Example chat payload:
+## Running With Docker
+
+Docker is useful here because it gives you a repeatable API/UI setup and persistent local Chroma storage without relying on whatever Python or Node packages are already on your machine.
+
+```powershell
+docker compose -f infra/docker-compose.yml up --build
+```
+
+That starts:
+
+- API: `http://127.0.0.1:8000`
+- UI: `http://127.0.0.1:5173`
+- Chroma-backed storage in the `finllm-storage` Docker volume
+
+The containers include health checks, and the frontend waits for the API to become healthy.
+
+## What The UI Buttons Do
+
+`Index sample` loads `examples/sample_docs/acme_10k_2025.txt`, chunks it, embeds it, and stores it. The built-in evals use this sample, so run this before `Run eval`.
+
+`Index SEC URL` fetches a filing from SEC archives, cleans the HTML, chunks it, and stores it with ticker/company/form/date metadata. This works with Inline XBRL URLs such as:
+
+```text
+https://www.sec.gov/ix?doc=/Archives/edgar/data/0001045810/000104581026000021/nvda-20260125.htm
+```
+
+`Upload text or PDF filing` indexes a local `.txt` or text-based `.pdf`. PDFs with only scanned images are rejected because there is no OCR layer yet.
+
+`Run eval` runs the local regression/eval suite. It compares the implemented modes and reports retrieval, citation, relevance, latency, cost, and tool-call metrics.
+
+`RAFT` generates training-style examples from indexed chunks. Each example includes a question, relevant evidence, distractors, a cited answer, and metadata. The LoRA step is simulated so the data shape can be checked without a GPU.
+
+## API Endpoints
+
+- `POST /api/v1/ingestions/sample`
+- `POST /api/v1/ingestions/sec-url`
+- `POST /api/v1/documents/upload`
+- `GET /api/v1/ingestions/status`
+- `POST /api/v1/chat`
+- `POST /api/v1/evals`
+- `POST /api/v1/finetuning/raft`
+
+Example chat request:
 
 ```json
 {
   "question": "What risk factors did Acme disclose?",
-  "mode": "rag_rerank",
-  "filters": { "ticker": "ACME" }
+  "mode": "rag_rerank"
 }
 ```
 
-Example SEC URL ingestion payload:
+Example SEC ingestion request:
 
 ```json
 {
@@ -100,40 +114,52 @@ Example SEC URL ingestion payload:
 }
 ```
 
-## Verification Snapshot
+## Architecture
 
-Current local checks:
-
-- Python tests: 63 passed.
-- Python coverage: 95.52%.
-- Ruff and MyPy: passed.
-- Chroma vector store integration: passed.
-- Frontend build: passed.
-- Security audit note: run dependency audits in a clean project environment with a lockfile before deployment.
-
-See `reports/eval_results.md` for the evaluation summary.
-
-## Design Principles
-
-- Answers must cite retrieved chunks. Unsupported answers should say evidence is insufficient.
-- Facts, inference, confidence, limitations, and "not financial advice" framing are separated.
-- Retrieval, prompts, tool calls, latency, estimated cost, and verification quality are structured logs.
-- APIs validate user input and do not log secrets or uploaded document contents.
-- Evaluation is a first-class workflow, not an afterthought.
-
-## Paper Inspiration
-
-- RAG: retrieve external evidence before generation.
-- Self-RAG: critique and verify whether the answer is supported by context.
-- RAFT: train on relevant evidence and distractor chunks so the model learns grounded answering.
-- RAGAS-style metrics: faithfulness, answer relevance, and context relevance.
-
-The detailed write-up lives in `reports/research_report.md`.
-
-## Docker Compose
-
-```powershell
-docker compose -f infra/docker-compose.yml up --build
+```text
+ingestion/     loaders, cleaning, chunking, upload parsing, metadata
+retrieval/     embeddings, Chroma/in-memory stores, hybrid search, reranking, citations
+agent/         planner, workflow, tools, memory, verifier
+evals/         retrieval/citation/relevance/hallucination/cost/latency checks
+finetuning/    RAFT data, LoRA-format data, simulated training/eval reports
+api/           FastAPI app and schemas
+frontend/      React + TypeScript workbench
+infra/         Docker Compose, Dockerfiles, AWS notes
+reports/       research report and eval summaries
+tests/         unit and integration tests
 ```
 
-This runs the FastAPI backend on `http://127.0.0.1:8000` and the Vite frontend on `http://127.0.0.1:5173`.
+## Research Thread
+
+The main question is:
+
+> How do vanilla RAG, Self-RAG-style critique, RAFT-style training data, and optional LoRA fine-tuning compare for financial research tasks in citation faithfulness, answer accuracy, latency, and cost?
+
+The implementation supports that comparison in a local, measurable way:
+
+- `basic_rag`: direct vector retrieval.
+- `rag_rerank`: hybrid retrieval plus reranking.
+- `self_verify`: reranked retrieval plus citation verification and limitations.
+- `RAFT`: dataset generation plus simulated LoRA report.
+
+Cost is tracked because it matters once hosted LLMs or paid rerankers are plugged in. In the current local setup, estimated cost is `$0.00`.
+
+## Verification
+
+Latest local verification:
+
+- `ruff`: passed
+- `mypy`: passed
+- `pytest`: `74 passed`
+- coverage: about `95%`
+- frontend build: passed
+- `pip-audit`: no known vulnerabilities
+
+`npm audit` needs a committed frontend lockfile. The project currently avoids that large generated file to keep history small.
+
+## Reports
+
+- Research report: `reports/research_report.md`
+- Eval summary: `reports/eval_results.md`
+
+The app is research software, not financial advice. Outputs should be treated as cited analysis over the indexed corpus.
