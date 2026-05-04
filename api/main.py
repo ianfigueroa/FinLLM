@@ -208,6 +208,15 @@ def create_app() -> FastAPI:
 
     @app.post("/api/v1/evals", response_model=ApiResponse)
     def run_evals() -> ApiResponse:
+        missing_eval_chunks = _missing_eval_chunks(state)
+        if missing_eval_chunks:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Index sample before running built-in evals; missing expected chunks: "
+                    + ", ".join(missing_eval_chunks)
+                ),
+            )
         agent = ResearchAgent(state.store, mode="self_verify")
         results = run_regression_cases(
             SAMPLE_EVAL_CASES,
@@ -348,6 +357,16 @@ def _evaluate_modes(state: AppState) -> list[dict[str, object]]:
             }
         )
     return mode_results
+
+
+def _missing_eval_chunks(state: AppState) -> list[str]:
+    indexed_ids = {chunk.chunk_id for chunk in state.store.all_chunks()}
+    expected_ids = {
+        chunk_id
+        for case in SAMPLE_EVAL_CASES
+        for chunk_id in case.expected_chunk_ids
+    }
+    return sorted(expected_ids - indexed_ids)
 
 
 def _average(values: list[float]) -> float:
