@@ -1,0 +1,10 @@
+Item 1. Business
+Acme Corp sells industrial analytics software to banks, insurers, and asset managers.
+Subscription revenue increased in 2025 because enterprise renewals improved and more customers adopted cloud modules.
+
+Item 1A. Risk Factors
+Acme depends on a small number of large financial customers. Losing one of those customers could reduce revenue materially.
+Acme also depends on cloud vendors, and outages or vendor price increases could affect margins.
+
+Item 7. Management's Discussion and Analysis
+Management attributed margin expansion to renewal pricing, lower hosting costs, and disciplined headcount growth.
