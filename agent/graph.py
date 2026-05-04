@@ -215,12 +215,28 @@ class ResearchAgent:
 
 
 def _best_sentence(text: str, query_terms: set[str]) -> str:
-    sentences = [
-        sentence.strip() for sentence in text.replace("\n", " ").split(".") if sentence.strip()
-    ]
+    sentences = _sentence_candidates(text)
     if not sentences:
         return "Retrieved chunk contains no sentence-like evidence."
     return max(sentences, key=lambda sentence: len(set(tokenize(sentence)) & query_terms))
+
+
+def _sentence_candidates(text: str) -> list[str]:
+    protected = text.replace("\n", " ")
+    replacements = {
+        "U.S.": "US_ABBREVIATION",
+        "U.K.": "UK_ABBREVIATION",
+    }
+    for abbreviation, token in replacements.items():
+        protected = protected.replace(abbreviation, token)
+
+    sentences = [sentence.strip() for sentence in protected.split(".") if sentence.strip()]
+    restored: list[str] = []
+    for sentence in sentences:
+        for abbreviation, token in replacements.items():
+            sentence = sentence.replace(token, abbreviation)
+        restored.append(sentence)
+    return restored
 
 
 def _confidence(results: list[SearchResult], verification: CitationValidation) -> float:
