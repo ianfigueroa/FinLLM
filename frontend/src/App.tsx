@@ -1,6 +1,5 @@
 import {
   BarChart3,
-  CheckCircle2,
   Clock3,
   Database,
   FileSearch,
@@ -44,10 +43,13 @@ const LOADING_LABELS: Record<string, string> = {
   raft: 'Generating'
 }
 
+const EVIDENCE_PREVIEW_CHARS = 280
+
 export function App() {
   const [question, setQuestion] = useState(SAMPLE_QUESTIONS[0])
   const [mode, setMode] = useState('rag_rerank')
   const [status, setStatus] = useState({ chunks_indexed: 0 })
+  const [indexedAt, setIndexedAt] = useState<string>('')
   const [chat, setChat] = useState<ChatResponse | null>(null)
   const [evalSummary, setEvalSummary] = useState<EvalSummary | null>(null)
   const [raftSummary, setRaftSummary] = useState<RaftExperimentResult | null>(null)
@@ -100,12 +102,16 @@ export function App() {
       ? 'Pass'
       : 'Review'
     : 'Pending'
+  const citationStatusClass = chat ? (chat.verification.passed ? 'pass' : 'warn') : ''
+  const responseMethod = retrievalMethod(chat?.mode ?? mode)
+  const costDisplay = formatCost(evalSummary)
 
   async function handleIngest() {
     await runAction('ingest', async () => {
       const result = await ingestSample()
       setStatus(await getIngestionStatus())
-      setLastSource(`ACME sample · ${result.chunks_indexed} chunks`)
+      setIndexedAt(formatClock())
+      setLastSource(`ACME sample - ${result.chunks_indexed} chunks`)
     })
   }
 
@@ -113,6 +119,7 @@ export function App() {
     await runAction('sec-url', async () => {
       const result = await ingestSecUrl(secForm)
       setStatus(await getIngestionStatus())
+      setIndexedAt(formatClock())
       setLastSource(`${result.ticker ?? secForm.ticker.toUpperCase()} SEC filing`)
     })
   }
@@ -122,6 +129,7 @@ export function App() {
     await runAction('upload', async () => {
       const result = await uploadDocument({ ...uploadForm, file: uploadFile })
       setStatus(await getIngestionStatus())
+      setIndexedAt(formatClock())
       setLastSource(`${result.ticker ?? uploadForm.ticker.toUpperCase()} upload`)
     })
   }
@@ -160,23 +168,30 @@ export function App() {
     }
   }
 
+  function handleQuestionKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+      event.preventDefault()
+      if (!isBusy && question.trim()) {
+        void handleAsk()
+      }
+    }
+  }
+
   return (
     <main className="workspace">
       <header className="app-header">
         <div>
-          <p className="eyebrow">FinLLM</p>
-          <h1>Research Agent</h1>
+          <h1>FinLLM Research Agent</h1>
+          <p className="subtitle">
+            Retrieval-augmented financial research with citations, tool use, and evaluation.
+          </p>
         </div>
         <div className="header-actions">
-          <StatusPill label={isBusy ? LOADING_LABELS[loading] : 'Ready'} />
-          <button onClick={handleIngest} disabled={isBusy} title="Index ACME sample filing">
-            <Database size={16} /> Index sample
-          </button>
           <button onClick={handleEval} disabled={isBusy} title="Run local evals">
-            <BarChart3 size={16} /> Run eval
+            <BarChart3 size={14} /> Run eval
           </button>
           <button onClick={handleRaft} disabled={isBusy} title="Generate RAFT examples">
-            <FileSearch size={16} /> RAFT
+            <FileSearch size={14} /> Generate RAFT data
           </button>
         </div>
       </header>
@@ -184,15 +199,45 @@ export function App() {
       {error && <div className="notice error">{error}</div>}
 
       <section className="summary-grid" aria-label="Research status">
-        <Metric icon={<Database size={16} />} label="Corpus" value={`${status.chunks_indexed} chunks`} />
-        <Metric icon={<Clock3 size={16} />} label="Latency" value={`${latencyMs} ms`} />
-        <Metric icon={<ShieldCheck size={16} />} label="Citations" value={citationStatus} />
-        <Metric icon={<BarChart3 size={16} />} label="Confidence" value={chat ? `${Math.round(chat.confidence * 100)}%` : '0%'} />
+        <Metric
+          icon={<Database size={15} />}
+          label="Corpus"
+          value={`${status.chunks_indexed} chunks`}
+          sub={indexedAt ? `indexed ${indexedAt}` : 'not yet indexed'}
+        />
+        <Metric
+          icon={<Clock3 size={15} />}
+          label="Latency"
+          value={`${latencyMs} ms`}
+          sub="last query"
+        />
+        <Metric
+          icon={<ShieldCheck size={15} />}
+          label="Citations"
+          value={citationStatus}
+          sub={chat ? `${chat.citations.length} markers` : 'awaiting query'}
+        />
+        <Metric
+          icon={<BarChart3 size={15} />}
+          label="Confidence"
+          value={chat ? `${Math.round(chat.confidence * 100)}%` : '-'}
+          sub={chat ? `mode ${chat.mode}` : 'no response'}
+        />
       </section>
 
       <section className="app-grid">
         <aside className="source-column">
           <PanelTitle title="Sources" detail={lastSource} />
+          {isBusy && <div className="inline-status">{LOADING_LABELS[loading]}</div>}
+          <div className="source-block demo-source">
+            <div>
+              <strong>Demo filing</strong>
+              <span>Loads the bundled ACME sample used by the built-in eval.</span>
+            </div>
+            <button className="secondary-action full-button" onClick={handleIngest} disabled={isBusy}>
+              <Database size={15} /> Load demo sample
+            </button>
+          </div>
           <div className="source-block">
             <label className="field full">
               <span>SEC URL</span>
@@ -208,7 +253,7 @@ export function App() {
             <TextField label="Company" value={secForm.company} onChange={(company) => setSecForm({ ...secForm, company })} />
             <TextField label="Filing date" value={secForm.filing_date} onChange={(filing_date) => setSecForm({ ...secForm, filing_date })} />
             <button className="primary-action full-button" onClick={handleSecUrlIngest} disabled={isBusy || !canIndexSec}>
-              <Link2 size={16} /> Index SEC filing
+              <Link2 size={15} /> Index SEC filing
             </button>
           </div>
 
@@ -229,7 +274,7 @@ export function App() {
             <TextField label="Company" value={uploadForm.company} onChange={(company) => setUploadForm({ ...uploadForm, company })} />
             <TextField label="Filing date" value={uploadForm.filing_date} onChange={(filing_date) => setUploadForm({ ...uploadForm, filing_date })} />
             <button className="secondary-action full-button" onClick={handleUpload} disabled={isBusy || !canUpload}>
-              <Upload size={16} /> Upload filing
+              <Upload size={15} /> Upload filing
             </button>
           </div>
         </aside>
@@ -252,25 +297,36 @@ export function App() {
               </div>
             </div>
 
-            <textarea value={question} onChange={(event) => setQuestion(event.target.value)} />
+            <textarea
+              value={question}
+              onChange={(event) => setQuestion(event.target.value)}
+              onKeyDown={handleQuestionKeyDown}
+              placeholder="Ask a research question grounded in indexed filings..."
+            />
 
             <div className="query-actions">
               <div className="sample-row">
                 {SAMPLE_QUESTIONS.map((sample) => (
                   <button key={sample} onClick={() => setQuestion(sample)} disabled={isBusy}>
-                    <Play size={13} /> {sample}
+                    <Play size={12} /> {sample}
                   </button>
                 ))}
               </div>
-              <button className="primary-action submit-button" onClick={handleAsk} disabled={isBusy || !question.trim()}>
-                <Send size={16} /> Submit
-              </button>
+              <div className="submit-cluster">
+                <span className="shortcut-hint">Ctrl + Enter</span>
+                <button className="primary-action submit-button" onClick={handleAsk} disabled={isBusy || !question.trim()}>
+                  <Send size={14} /> Submit
+                </button>
+              </div>
             </div>
           </div>
 
           <section className="answer-panel">
-            <PanelTitle title="Response" detail={chat?.mode ?? modeLabel(mode)} />
-            <pre>{chat?.answer ?? 'No response yet.'}</pre>
+            <PanelTitle title="Response" detail={responseMethod} detailClass="method-badge" />
+            <pre>
+              {chat?.answer ??
+                'Ask a question to retrieve cited evidence. Index the sample filing first if the corpus is empty.'}
+            </pre>
             {chat && (
               <div className="citation-strip" aria-label="Citations">
                 {chat.citations.map((citation) => (
@@ -290,15 +346,26 @@ export function App() {
           <section className="evidence-panel">
             <PanelTitle title="Retrieved evidence" detail={`${chat?.retrieved_chunks.length ?? 0} chunks`} />
             <div className="evidence-list">
-              {chat?.retrieved_chunks.map((chunk) => (
-                <article key={chunk.chunk_id} className="evidence-row">
-                  <div>
-                    <strong>{chunk.metadata.ticker ?? 'DOC'} · {chunk.metadata.section ?? 'Unknown section'}</strong>
-                    <span>{chunk.chunk_id} · {chunk.score.toFixed(3)}</span>
-                  </div>
-                  <p>{chunk.text}</p>
-                </article>
-              )) ?? <p className="empty-state">No evidence retrieved.</p>}
+              {chat?.retrieved_chunks.length ? (
+                chat.retrieved_chunks.map((chunk) => (
+                  <article key={chunk.chunk_id} className="evidence-row">
+                    <div>
+                      <strong>
+                        {chunk.metadata.ticker ?? 'DOC'} - {chunk.metadata.section ?? 'Unknown section'}
+                      </strong>
+                      <span className="row-meta">
+                        {chunk.chunk_id} - {chunk.score.toFixed(3)}
+                      </span>
+                    </div>
+                    <p>{clamp(chunk.text, EVIDENCE_PREVIEW_CHARS)}</p>
+                  </article>
+                ))
+              ) : (
+                <p className="empty-state">
+                  Evidence will appear here after a question is submitted. Each chunk shows section,
+                  retrieval score, and a preview. Click a citation marker for the full passage.
+                </p>
+              )}
             </div>
           </section>
         </section>
@@ -319,7 +386,9 @@ export function App() {
                 <p className="snippet">{selectedChunk?.text ?? selectedCitation.snippet}</p>
               </>
             ) : (
-              <p className="empty-state">Select a citation.</p>
+              <p className="empty-state">
+                Select a citation marker above to inspect the source chunk and its metadata.
+              </p>
             )}
           </section>
 
@@ -331,28 +400,40 @@ export function App() {
                   <article key={`${call.name}-${index}`}>
                     <div>
                       <strong>{call.name}</strong>
-                      <span>{call.ok ? 'ok' : 'failed'}</span>
+                      <span className={`tool-status${call.ok ? '' : ' failed'}`}>
+                        {call.ok ? 'ok' : 'failed'}
+                      </span>
                     </div>
                     <code>{JSON.stringify(call.output ?? call.error)}</code>
                   </article>
                 ))}
               </div>
             ) : (
-              <p className="empty-state">No tool calls.</p>
+              <p className="empty-state">
+                Tool calls (calculator, ratios, market data, backtest) will appear here when the agent
+                invokes them.
+              </p>
             )}
           </section>
 
           <section className="review-panel">
             <PanelTitle title="Evaluation" detail={evalSummary ? 'Complete' : 'Not run'} />
-            <StatLine label="Regression" value={evalSummary ? `${Math.round(evalSummary.regression_pass_rate * 100)}%` : 'Not run'} />
-            <StatLine label="Citation check" value={citationStatus} />
-            <StatLine label="Cost" value="$0.00 local" />
+            <StatLine
+              label="Regression"
+              value={evalSummary ? `${Math.round(evalSummary.regression_pass_rate * 100)}%` : 'Not run'}
+              tone={evalSummary ? (evalSummary.regression_pass_rate >= 0.8 ? 'pass' : 'warn') : ''}
+            />
+            <StatLine label="Citation check" value={citationStatus} tone={citationStatusClass} />
+            <StatLine label="Cost / query" value={costDisplay} />
             {evalSummary?.mode_results.map((result) => (
               <div className="mode-result" key={result.mode}>
                 <strong>{result.mode}</strong>
-                <span>retrieval {Math.round(result.retrieval_precision * 100)}%</span>
+                <span>precision {Math.round(result.retrieval_precision * 100)}%</span>
+                <span>recall@5 {Math.round(result.retrieval_recall_at_5 * 100)}%</span>
+                <span>mrr {result.retrieval_mrr.toFixed(2)}</span>
                 <span>citations {Math.round(result.citation_correctness * 100)}%</span>
                 <span>{result.avg_latency_ms.toFixed(1)} ms</span>
+                <span>${result.estimated_cost_usd.toFixed(5)}</span>
               </div>
             ))}
             {raftSummary && (
@@ -372,21 +453,42 @@ export function App() {
   )
 }
 
-function PanelTitle({ title, detail }: { title: string; detail?: string }) {
+function PanelTitle({
+  title,
+  detail,
+  detailClass
+}: {
+  title: string
+  detail?: string
+  detailClass?: string
+}) {
   return (
     <div className="panel-title">
       <h2>{title}</h2>
-      {detail && <span>{detail}</span>}
+      {detail && <span className={detailClass}>{detail}</span>}
     </div>
   )
 }
 
-function Metric({ icon, label, value }: { icon: React.ReactNode; label: string; value: string | number }) {
+function Metric({
+  icon,
+  label,
+  value,
+  sub
+}: {
+  icon: React.ReactNode
+  label: string
+  value: string | number
+  sub?: string
+}) {
   return (
     <div className="metric">
-      {icon}
-      <span>{label}</span>
+      <div className="metric-head">
+        {icon}
+        <span>{label}</span>
+      </div>
       <strong>{value}</strong>
+      {sub && <small>{sub}</small>}
     </div>
   )
 }
@@ -408,23 +510,48 @@ function TextField({
   )
 }
 
-function StatLine({ label, value }: { label: string; value: string }) {
+function StatLine({ label, value, tone = '' }: { label: string; value: string; tone?: string }) {
   return (
-    <div className="stat-line">
+    <div className={`stat-line${tone ? ` ${tone}` : ''}`}>
       <span>{label}</span>
       <strong>{value}</strong>
     </div>
   )
 }
 
-function StatusPill({ label }: { label: string }) {
-  return (
-    <span className="status-pill">
-      <CheckCircle2 size={14} /> {label}
-    </span>
-  )
-}
-
 function modeLabel(mode: string) {
   return MODES.find((option) => option.id === mode)?.label ?? mode
+}
+
+function retrievalMethod(mode: string): string {
+  switch (mode) {
+    case 'basic_rag':
+      return 'BM25 + dense'
+    case 'rag_rerank':
+      return 'BM25 + dense - reranked'
+    case 'self_verify':
+      return 'BM25 + dense - reranked - verified'
+    default:
+      return mode
+  }
+}
+
+function clamp(text: string, max: number): string {
+  if (text.length <= max) return text
+  return `${text.slice(0, max).trimEnd()}...`
+}
+
+function formatClock(): string {
+  const now = new Date()
+  const hh = String(now.getHours()).padStart(2, '0')
+  const mm = String(now.getMinutes()).padStart(2, '0')
+  return `${hh}:${mm}`
+}
+
+function formatCost(summary: EvalSummary | null): string {
+  if (!summary || summary.mode_results.length === 0) return 'Local'
+  const total = summary.mode_results.reduce((acc, m) => acc + m.estimated_cost_usd, 0)
+  const avg = total / summary.mode_results.length
+  if (avg <= 0) return 'Local (no API)'
+  return `$${avg.toFixed(5)}`
 }

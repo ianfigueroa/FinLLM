@@ -24,3 +24,6 @@ frontend/dist/
 
 .DS_Store
 Thumbs.db
+
+.playwright-mcp/
+finllm-desk-*.png
