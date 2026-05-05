@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from time import perf_counter
 from pathlib import Path
 
 from fastapi import FastAPI, status
@@ -10,6 +11,7 @@ from evals.datasets import SAMPLE_EVAL_CASES
 from evals.regression_tests import run_regression_cases
 from ingestion.chunker import chunk_document
 from ingestion.sec_loader import load_sec_filing
+from observability.structured_logger import StructuredLogger
 from retrieval.embeddings import HashEmbeddingModel
 from retrieval.vector_store import InMemoryVectorStore
 
@@ -17,6 +19,7 @@ from retrieval.vector_store import InMemoryVectorStore
 class AppState:
     def __init__(self) -> None:
         self.store = InMemoryVectorStore(HashEmbeddingModel())
+        self.logger = StructuredLogger("finllm.api")
 
 
 def create_app() -> FastAPI:
@@ -43,6 +46,7 @@ def create_app() -> FastAPI:
         )
         chunks = chunk_document(document, max_chars=420, overlap_chars=60)
         state.store.upsert(chunks)
+        state.logger.event("ingestion.sample.completed", documents=1, chunks=len(chunks))
         return ApiResponse(data={"documents_ingested": 1, "chunks_indexed": len(chunks)})
 
     @app.get("/api/v1/ingestions/status", response_model=ApiResponse)
@@ -52,9 +56,20 @@ def create_app() -> FastAPI:
 
     @app.post("/api/v1/chat", response_model=ApiResponse)
     def chat(request: ChatRequest) -> ApiResponse:
+        started = perf_counter()
         response = ResearchAgent(state.store, mode=request.mode).answer(
             request.question,
             filters=request.filters,
+        )
+        latency_ms = round((perf_counter() - started) * 1_000, 4)
+        state.logger.event(
+            "chat.completed",
+            mode=request.mode,
+            retrieved_chunks=len(response.retrieved_chunks),
+            citations=len(response.citations),
+            latency_ms=latency_ms,
+            estimated_cost_usd=0.0,
+            citation_verification_passed=response.verification.passed,
         )
         return ApiResponse(data=_agent_response_payload(response))
 
@@ -66,6 +81,7 @@ def create_app() -> FastAPI:
             lambda case: _answer_for_eval(agent, case.question),
         )
         pass_rate = sum(1 for result in results if result["passed"]) / max(len(results), 1)
+        state.logger.event("eval.completed", cases=len(results), regression_pass_rate=pass_rate)
         return ApiResponse(data={"regression_pass_rate": pass_rate, "cases": results})
 
     return app
