@@ -50,6 +50,8 @@ export interface EvalSummary {
 export interface ModeEvalResult {
   mode: string
   retrieval_precision: number
+  retrieval_recall_at_5: number
+  retrieval_mrr: number
   context_relevance: number
   citation_correctness: number
   hallucination_rate: number

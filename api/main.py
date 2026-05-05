@@ -17,6 +17,7 @@ from evals.datasets import SAMPLE_EVAL_CASES
 from evals.hallucination_eval import hallucination_rate
 from evals.ragas_eval import answer_relevance, context_relevance, retrieval_precision
 from evals.regression_tests import run_regression_cases
+from evals.retrieval_eval import mean_reciprocal_rank, retrieval_recall_at_k
 from evals.tool_eval import tool_call_success_rate
 from finetuning.evaluate_finetuned import simulate_finetuned_eval
 from finetuning.make_lora_dataset import make_lora_records
@@ -317,16 +318,24 @@ def _answer_for_eval(
     )
 
 
+_INPUT_TOKEN_USD = 3e-6
+_OUTPUT_TOKEN_USD = 1.5e-5
+_CHARS_PER_TOKEN = 4
+
+
 def _evaluate_modes(state: AppState) -> list[dict[str, object]]:
     mode_results: list[dict[str, object]] = []
     for mode in ["basic_rag", "rag_rerank", "self_verify"]:
         latencies: list[float] = []
         retrieval_scores: list[float] = []
+        recall_scores: list[float] = []
+        mrr_scores: list[float] = []
         context_scores: list[float] = []
         citation_scores: list[float] = []
         hallucination_scores: list[float] = []
         relevance_scores: list[float] = []
         tool_successes: list[bool] = []
+        costs: list[float] = []
 
         agent = ResearchAgent(state.store, mode=mode)
         for case in SAMPLE_EVAL_CASES:
@@ -338,26 +347,39 @@ def _evaluate_modes(state: AppState) -> list[dict[str, object]]:
             allowed_markers = [citation.marker for citation in response.citations]
 
             retrieval_scores.append(retrieval_precision(retrieved_ids, case.expected_chunk_ids))
+            recall_scores.append(retrieval_recall_at_k(retrieved_ids, case.expected_chunk_ids, k=5))
+            mrr_scores.append(mean_reciprocal_rank(retrieved_ids, case.expected_chunk_ids))
             context_scores.append(context_relevance(case.question, evidence))
             citation_scores.append(citation_correctness(response.answer, allowed_markers))
             hallucination_scores.append(hallucination_rate(response.answer, evidence))
             relevance_scores.append(answer_relevance(case.question, response.answer))
             tool_successes.extend(call.ok for call in response.tool_calls)
+            costs.append(_estimate_query_cost(case.question, evidence, response.answer))
 
         mode_results.append(
             {
                 "mode": mode,
                 "retrieval_precision": _average(retrieval_scores),
+                "retrieval_recall_at_5": _average(recall_scores),
+                "retrieval_mrr": _average(mrr_scores),
                 "context_relevance": _average(context_scores),
                 "citation_correctness": _average(citation_scores),
                 "hallucination_rate": _average(hallucination_scores),
                 "answer_relevance": _average(relevance_scores),
                 "avg_latency_ms": _average(latencies),
-                "estimated_cost_usd": 0.0,
+                "estimated_cost_usd": round(_average(costs), 6),
                 "tool_call_success_rate": tool_call_success_rate(tool_successes),
             }
         )
     return mode_results
+
+
+def _estimate_query_cost(question: str, evidence: list[str], answer: str) -> float:
+    input_chars = len(question) + sum(len(text) for text in evidence)
+    output_chars = len(answer)
+    input_tokens = input_chars / _CHARS_PER_TOKEN
+    output_tokens = output_chars / _CHARS_PER_TOKEN
+    return input_tokens * _INPUT_TOKEN_USD + output_tokens * _OUTPUT_TOKEN_USD
 
 
 def _missing_eval_chunks(state: AppState) -> list[str]:
