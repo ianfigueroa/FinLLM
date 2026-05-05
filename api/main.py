@@ -1,15 +1,17 @@
 from __future__ import annotations
 
-from time import perf_counter
 from pathlib import Path
+from time import perf_counter
 
-from fastapi import FastAPI, status
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile, status
 
 from agent.graph import ResearchAgent
 from api.schemas import ApiResponse, ChatRequest
 from evals.datasets import SAMPLE_EVAL_CASES
 from evals.regression_tests import run_regression_cases
 from ingestion.chunker import chunk_document
+from ingestion.document_cleaner import clean_text
+from ingestion.metadata import Document, DocumentMetadata
 from ingestion.sec_loader import load_sec_filing
 from observability.structured_logger import StructuredLogger
 from retrieval.embeddings import HashEmbeddingModel
@@ -47,6 +49,43 @@ def create_app() -> FastAPI:
         chunks = chunk_document(document, max_chars=420, overlap_chars=60)
         state.store.upsert(chunks)
         state.logger.event("ingestion.sample.completed", documents=1, chunks=len(chunks))
+        return ApiResponse(data={"documents_ingested": 1, "chunks_indexed": len(chunks)})
+
+    @app.post(
+        "/api/v1/documents/upload",
+        response_model=ApiResponse,
+        status_code=status.HTTP_201_CREATED,
+    )
+    async def upload_document(
+        ticker: str = Form(..., min_length=1, max_length=12),
+        company: str = Form(..., min_length=1, max_length=120),
+        form_type: str = Form(..., min_length=1, max_length=32),
+        filing_date: str = Form(..., min_length=4, max_length=32),
+        file: UploadFile = File(...),
+    ) -> ApiResponse:
+        if file.content_type not in {"text/plain", "application/octet-stream"}:
+            raise HTTPException(status_code=415, detail="Only plain text uploads are supported")
+        content = await file.read()
+        if len(content) > 10 * 1024 * 1024:
+            raise HTTPException(status_code=413, detail="Upload exceeds 10 MB limit")
+        document = Document(
+            text=clean_text(content.decode("utf-8")),
+            metadata=DocumentMetadata(
+                ticker=ticker.upper(),
+                company=company,
+                form_type=form_type.upper(),
+                filing_date=filing_date,
+                source=file.filename or "uploaded.txt",
+            ),
+        )
+        chunks = chunk_document(document, max_chars=420, overlap_chars=60)
+        state.store.upsert(chunks)
+        state.logger.event(
+            "ingestion.upload.completed",
+            documents=1,
+            chunks=len(chunks),
+            ticker=ticker.upper(),
+        )
         return ApiResponse(data={"documents_ingested": 1, "chunks_indexed": len(chunks)})
 
     @app.get("/api/v1/ingestions/status", response_model=ApiResponse)
