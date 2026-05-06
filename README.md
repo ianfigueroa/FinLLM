@@ -16,6 +16,8 @@ The project is a working local MVP. It can:
 - answer with citations that can be inspected in the UI;
 - compare basic RAG, RAG with reranking, and self-verification mode;
 - run calculator, metadata SQL, local market data, simple backtest, ratio, and restricted Python-analysis tools;
+- build a source-backed 3-statement financial model scaffold from indexed filing chunks;
+- export the model table to CSV from the UI;
 - generate RAFT-style examples, export LoRA-style JSONL records, and simulate LoRA reports;
 - configure optional OpenAI-compatible embeddings, Ollama generation, or OpenAI-compatible chat generation;
 - persist eval run history for quality and best-mode tracking;
@@ -88,6 +90,11 @@ https://www.sec.gov/ix?doc=/Archives/edgar/data/0001045810/000104581026000021/nv
 
 `Export JSONL` downloads LoRA-style instruction records as `finllm-raft-lora.jsonl`. That file is the handoff point for real fine-tuning experiments.
 
+`Build model` extracts supported income statement, balance sheet, and cash flow lines
+from the active ticker's indexed chunks, attaches model-source citations, projects the
+next one to five years from configurable revenue growth, and renders the result in a
+downloadable CSV table. It is a modeling scaffold, not an audited XBRL model.
+
 ## API Endpoints
 
 - `POST /api/v1/ingestions/sample`
@@ -100,6 +107,7 @@ https://www.sec.gov/ix?doc=/Archives/edgar/data/0001045810/000104581026000021/nv
 - `GET /api/v1/evals/history`
 - `POST /api/v1/finetuning/raft`
 - `POST /api/v1/finetuning/raft/export`
+- `POST /api/v1/models/three-statement`
 - `GET /api/v1/system/status`
 
 Example chat request:
@@ -133,6 +141,7 @@ evals/         retrieval/citation/relevance/hallucination/cost/latency checks
 finetuning/    RAFT data, LoRA-format data, simulated training/eval reports
 api/           FastAPI app and schemas
 frontend/      React + TypeScript workbench
+modeling/      3-statement extraction, source mapping, and projection scaffold
 infra/         Docker Compose, Dockerfiles, AWS notes
 reports/       research report and eval summaries
 tests/         unit and integration tests
@@ -150,6 +159,8 @@ The implementation supports that comparison in a local, measurable way:
 - `rag_rerank`: hybrid retrieval plus reranking.
 - `self_verify`: reranked retrieval plus citation verification and limitations.
 - `RAFT`: dataset generation, JSONL export, plus simulated LoRA report.
+- `Modeling`: source-backed 3-statement scaffold with cited historical lines and
+  configurable projection assumptions.
 
 Cost is tracked because it matters once hosted LLMs or paid rerankers are plugged in. In the current local setup, estimated cost is `$0.00`.
 
@@ -159,8 +170,8 @@ Latest local verification:
 
 - `ruff`: passed
 - `mypy`: passed
-- `pytest`: `104 passed`
-- coverage: `93.55%`
+- `pytest`: `108 passed`
+- coverage: `93.78%`
 - frontend build: passed
 - `pip-audit`: no known vulnerabilities
 
