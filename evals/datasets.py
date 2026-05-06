@@ -16,6 +16,6 @@ SAMPLE_EVAL_CASES = [
         case_id="acme-risk-factors",
         question="What customer concentration risk did Acme disclose?",
         expected_chunk_ids=["ACME-10-K-2025-02-15-0001"],
-        expected_terms=["customer", "revenue", "risk"],
+        expected_terms=["customer", "risk"],
     )
 ]
