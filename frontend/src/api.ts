@@ -51,8 +51,12 @@ export async function uploadDocument(payload: DocumentUploadRequest): Promise<In
   return (await response.json()).data
 }
 
-export function sendChat(question: string, mode: string): Promise<ChatResponse> {
-  return postJson('/api/v1/chat', { question, mode })
+export function sendChat(
+  question: string,
+  mode: string,
+  filters?: Record<string, string>
+): Promise<ChatResponse> {
+  return postJson('/api/v1/chat', { question, mode, filters })
 }
 
 export function runEval(): Promise<EvalSummary> {

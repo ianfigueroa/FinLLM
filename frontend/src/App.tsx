@@ -1,10 +1,11 @@
 import {
   BarChart3,
+  ChevronLeft,
+  ChevronRight,
   Clock3,
   Database,
   FileSearch,
   Link2,
-  Play,
   Send,
   ShieldCheck,
   Upload
@@ -22,17 +23,24 @@ import {
 } from './api'
 import type { ChatResponse, Citation, EvalSummary, RaftExperimentResult } from './types'
 
-const SAMPLE_QUESTIONS = [
-  'What risk factors did Acme disclose?',
-  'Why did Acme margins expand?',
-  'Generate a cited research thesis for Acme.'
-]
+const FALLBACK_QUESTION = 'What are the main risk factors in the indexed filing?'
 
 const MODES = [
   { id: 'basic_rag', label: 'Basic' },
   { id: 'rag_rerank', label: 'Rerank' },
   { id: 'self_verify', label: 'Verify' }
 ]
+
+const SOURCE_TABS = [
+  { id: 'sec', label: 'SEC filing' },
+  { id: 'upload', label: 'Upload' },
+  { id: 'demo', label: 'Demo' }
+] as const
+
+const SEARCH_SCOPES = [
+  { id: 'active', label: 'Active source' },
+  { id: 'all', label: 'All corpus' }
+] as const
 
 const LOADING_LABELS: Record<string, string> = {
   ingest: 'Indexing',
@@ -44,10 +52,17 @@ const LOADING_LABELS: Record<string, string> = {
 }
 
 const EVIDENCE_PREVIEW_CHARS = 280
+const QUESTION_ROTATION_MS = 6000
+
+type SourceTab = (typeof SOURCE_TABS)[number]['id']
+type SearchScope = (typeof SEARCH_SCOPES)[number]['id']
 
 export function App() {
-  const [question, setQuestion] = useState(SAMPLE_QUESTIONS[0])
+  const [question, setQuestion] = useState(FALLBACK_QUESTION)
   const [mode, setMode] = useState('rag_rerank')
+  const [sourceTab, setSourceTab] = useState<SourceTab>('sec')
+  const [searchScope, setSearchScope] = useState<SearchScope>('active')
+  const [suggestionIndex, setSuggestionIndex] = useState(0)
   const [status, setStatus] = useState({ chunks_indexed: 0 })
   const [indexedAt, setIndexedAt] = useState<string>('')
   const [chat, setChat] = useState<ChatResponse | null>(null)
@@ -82,6 +97,40 @@ export function App() {
     return chat.retrieved_chunks.find((chunk) => chunk.chunk_id === selectedCitation.chunk_id) ?? null
   }, [chat, selectedCitation])
 
+  const activeSource = useMemo(() => {
+    if (sourceTab === 'demo') {
+      return { ticker: 'ACME', company: 'Acme Corp', formType: '10-K' }
+    }
+    if (sourceTab === 'upload') {
+      return {
+        ticker: uploadForm.ticker.toUpperCase(),
+        company: uploadForm.company,
+        formType: uploadForm.form_type.toUpperCase()
+      }
+    }
+    return {
+      ticker: secForm.ticker.toUpperCase(),
+      company: secForm.company,
+      formType: secForm.form_type.toUpperCase()
+    }
+  }, [secForm.company, secForm.form_type, secForm.ticker, sourceTab, uploadForm])
+
+  const questionSuggestions = useMemo(
+    () => buildQuestionSuggestions(activeSource.company, activeSource.ticker),
+    [activeSource.company, activeSource.ticker]
+  )
+
+  useEffect(() => {
+    setSuggestionIndex(0)
+  }, [activeSource.company, activeSource.ticker])
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setSuggestionIndex((current) => (current + 1) % questionSuggestions.length)
+    }, QUESTION_ROTATION_MS)
+    return () => window.clearInterval(timer)
+  }, [questionSuggestions.length])
+
   const isBusy = Boolean(loading)
   const canIndexSec = Boolean(
     secForm.url.trim() &&
@@ -105,12 +154,19 @@ export function App() {
   const citationStatusClass = chat ? (chat.verification.passed ? 'pass' : 'warn') : ''
   const responseMethod = retrievalMethod(chat?.mode ?? mode)
   const costDisplay = formatCost(evalSummary)
+  const rotatingQuestion = questionSuggestions[suggestionIndex % questionSuggestions.length]
+  const activeTickerFilter = activeSource.ticker
+  const activeSearchFilters =
+    searchScope === 'active' && activeTickerFilter.trim()
+      ? { ticker: activeTickerFilter.trim().toUpperCase() }
+      : undefined
 
   async function handleIngest() {
     await runAction('ingest', async () => {
       const result = await ingestSample()
       setStatus(await getIngestionStatus())
       setIndexedAt(formatClock())
+      setSourceTab('demo')
       setLastSource(`ACME sample - ${result.chunks_indexed} chunks`)
     })
   }
@@ -120,6 +176,7 @@ export function App() {
       const result = await ingestSecUrl(secForm)
       setStatus(await getIngestionStatus())
       setIndexedAt(formatClock())
+      setSourceTab('sec')
       setLastSource(`${result.ticker ?? secForm.ticker.toUpperCase()} SEC filing`)
     })
   }
@@ -130,6 +187,7 @@ export function App() {
       const result = await uploadDocument({ ...uploadForm, file: uploadFile })
       setStatus(await getIngestionStatus())
       setIndexedAt(formatClock())
+      setSourceTab('upload')
       setLastSource(`${result.ticker ?? uploadForm.ticker.toUpperCase()} upload`)
     })
   }
@@ -137,7 +195,7 @@ export function App() {
   async function handleAsk() {
     await runAction('chat', async () => {
       const started = performance.now()
-      const result = await sendChat(question, mode)
+      const result = await sendChat(question, mode, activeSearchFilters)
       setLatencyMs(Math.round(performance.now() - started))
       setChat(result)
       setSelectedCitation(result.citations[0] ?? null)
@@ -175,6 +233,13 @@ export function App() {
         void handleAsk()
       }
     }
+  }
+
+  function cycleQuestion(direction: -1 | 1) {
+    setSuggestionIndex((current) => {
+      const next = current + direction
+      return (next + questionSuggestions.length) % questionSuggestions.length
+    })
   }
 
   return (
@@ -229,53 +294,78 @@ export function App() {
         <aside className="source-column">
           <PanelTitle title="Sources" detail={lastSource} />
           {isBusy && <div className="inline-status">{LOADING_LABELS[loading]}</div>}
-          <div className="source-block demo-source">
-            <div>
-              <strong>Demo filing</strong>
-              <span>Loads the bundled ACME sample used by the built-in eval.</span>
-            </div>
-            <button className="secondary-action full-button" onClick={handleIngest} disabled={isBusy}>
-              <Database size={15} /> Load demo sample
-            </button>
-          </div>
-          <div className="source-block">
-            <label className="field full">
-              <span>SEC URL</span>
-              <input
-                value={secForm.url}
-                onChange={(event) => setSecForm({ ...secForm, url: event.target.value })}
-              />
-            </label>
-            <div className="field-row compact">
-              <TextField label="Ticker" value={secForm.ticker} onChange={(ticker) => setSecForm({ ...secForm, ticker })} />
-              <TextField label="Form" value={secForm.form_type} onChange={(form_type) => setSecForm({ ...secForm, form_type })} />
-            </div>
-            <TextField label="Company" value={secForm.company} onChange={(company) => setSecForm({ ...secForm, company })} />
-            <TextField label="Filing date" value={secForm.filing_date} onChange={(filing_date) => setSecForm({ ...secForm, filing_date })} />
-            <button className="primary-action full-button" onClick={handleSecUrlIngest} disabled={isBusy || !canIndexSec}>
-              <Link2 size={15} /> Index SEC filing
-            </button>
+          <div className="source-tabs" role="tablist" aria-label="Source type">
+            {SOURCE_TABS.map((tab) => (
+              <button
+                key={tab.id}
+                className={sourceTab === tab.id ? 'active' : ''}
+                onClick={() => setSourceTab(tab.id)}
+                type="button"
+              >
+                {tab.label}
+              </button>
+            ))}
           </div>
 
-          <div className="source-block">
-            <label className="field full">
-              <span>Upload</span>
-              <input
-                type="file"
-                accept=".txt,.text,.pdf,text/plain,application/pdf"
-                onChange={(event) => setUploadFile(event.target.files?.[0] ?? null)}
-              />
-            </label>
-            <div className="file-name">{uploadFile?.name ?? 'No file selected'}</div>
-            <div className="field-row compact">
-              <TextField label="Ticker" value={uploadForm.ticker} onChange={(ticker) => setUploadForm({ ...uploadForm, ticker })} />
-              <TextField label="Form" value={uploadForm.form_type} onChange={(form_type) => setUploadForm({ ...uploadForm, form_type })} />
+          {sourceTab === 'demo' && (
+            <div className="source-block">
+              <div className="source-kicker">
+                <strong>ACME 10-K fixture</strong>
+                <span>Built-in eval source</span>
+              </div>
+              <button className="secondary-action full-button" onClick={handleIngest} disabled={isBusy}>
+                <Database size={15} /> Load demo sample
+              </button>
             </div>
-            <TextField label="Company" value={uploadForm.company} onChange={(company) => setUploadForm({ ...uploadForm, company })} />
-            <TextField label="Filing date" value={uploadForm.filing_date} onChange={(filing_date) => setUploadForm({ ...uploadForm, filing_date })} />
-            <button className="secondary-action full-button" onClick={handleUpload} disabled={isBusy || !canUpload}>
-              <Upload size={15} /> Upload filing
-            </button>
+          )}
+
+          {sourceTab === 'sec' && (
+            <div className="source-block">
+              <label className="field full">
+                <span>SEC URL</span>
+                <input
+                  value={secForm.url}
+                  onChange={(event) => setSecForm({ ...secForm, url: event.target.value })}
+                />
+              </label>
+              <div className="field-row compact">
+                <TextField label="Ticker" value={secForm.ticker} onChange={(ticker) => setSecForm({ ...secForm, ticker })} />
+                <TextField label="Form" value={secForm.form_type} onChange={(form_type) => setSecForm({ ...secForm, form_type })} />
+              </div>
+              <TextField label="Company" value={secForm.company} onChange={(company) => setSecForm({ ...secForm, company })} />
+              <TextField label="Filing date" value={secForm.filing_date} onChange={(filing_date) => setSecForm({ ...secForm, filing_date })} />
+              <button className="primary-action full-button" onClick={handleSecUrlIngest} disabled={isBusy || !canIndexSec}>
+                <Link2 size={15} /> Index SEC filing
+              </button>
+            </div>
+          )}
+
+          {sourceTab === 'upload' && (
+            <div className="source-block">
+              <label className="field full">
+                <span>Upload</span>
+                <input
+                  type="file"
+                  accept=".txt,.text,.pdf,text/plain,application/pdf"
+                  onChange={(event) => setUploadFile(event.target.files?.[0] ?? null)}
+                />
+              </label>
+              <div className="file-name">{uploadFile?.name ?? 'No file selected'}</div>
+              <div className="field-row compact">
+                <TextField label="Ticker" value={uploadForm.ticker} onChange={(ticker) => setUploadForm({ ...uploadForm, ticker })} />
+                <TextField label="Form" value={uploadForm.form_type} onChange={(form_type) => setUploadForm({ ...uploadForm, form_type })} />
+              </div>
+              <TextField label="Company" value={uploadForm.company} onChange={(company) => setUploadForm({ ...uploadForm, company })} />
+              <TextField label="Filing date" value={uploadForm.filing_date} onChange={(filing_date) => setUploadForm({ ...uploadForm, filing_date })} />
+              <button className="secondary-action full-button" onClick={handleUpload} disabled={isBusy || !canUpload}>
+                <Upload size={15} /> Upload filing
+              </button>
+            </div>
+          )}
+
+          <div className="source-summary">
+            <span>Query scope</span>
+            <strong>{searchScope === 'active' ? activeTickerFilter || 'Active source' : 'All corpus'}</strong>
           </div>
         </aside>
 
@@ -283,17 +373,51 @@ export function App() {
           <div className="query-panel">
             <div className="query-bar">
               <PanelTitle title="Question" detail={modeLabel(mode)} />
-              <div className="mode-toggle" role="group" aria-label="Research mode">
-                {MODES.map((option) => (
-                  <button
-                    key={option.id}
-                    className={mode === option.id ? 'active' : ''}
-                    onClick={() => setMode(option.id)}
-                    disabled={isBusy}
-                  >
-                    {option.label}
-                  </button>
-                ))}
+              <div className="query-controls">
+                <div className="mode-toggle" role="group" aria-label="Research mode">
+                  {MODES.map((option) => (
+                    <button
+                      key={option.id}
+                      className={mode === option.id ? 'active' : ''}
+                      onClick={() => setMode(option.id)}
+                      disabled={isBusy}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="scope-toggle" role="group" aria-label="Search scope">
+                  {SEARCH_SCOPES.map((option) => (
+                    <button
+                      key={option.id}
+                      className={searchScope === option.id ? 'active' : ''}
+                      onClick={() => setSearchScope(option.id)}
+                      disabled={isBusy}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="question-deck">
+              <button
+                className="question-cycle"
+                onClick={() => setQuestion(rotatingQuestion)}
+                disabled={isBusy}
+                type="button"
+              >
+                <span>Suggested question</span>
+                <strong>{rotatingQuestion}</strong>
+              </button>
+              <div className="deck-actions">
+                <button className="icon-button" onClick={() => cycleQuestion(-1)} disabled={isBusy} type="button">
+                  <ChevronLeft size={15} />
+                </button>
+                <button className="icon-button" onClick={() => cycleQuestion(1)} disabled={isBusy} type="button">
+                  <ChevronRight size={15} />
+                </button>
               </div>
             </div>
 
@@ -306,18 +430,15 @@ export function App() {
 
             <div className="query-actions">
               <div className="sample-row">
-                {SAMPLE_QUESTIONS.map((sample) => (
+                {questionSuggestions.slice(0, 4).map((sample) => (
                   <button key={sample} onClick={() => setQuestion(sample)} disabled={isBusy}>
-                    <Play size={12} /> {sample}
+                    {sample}
                   </button>
                 ))}
               </div>
-              <div className="submit-cluster">
-                <span className="shortcut-hint">Ctrl + Enter</span>
-                <button className="primary-action submit-button" onClick={handleAsk} disabled={isBusy || !question.trim()}>
-                  <Send size={14} /> Submit
-                </button>
-              </div>
+              <button className="primary-action submit-button" onClick={handleAsk} disabled={isBusy || !question.trim()}>
+                <Send size={14} /> Submit
+              </button>
             </div>
           </div>
 
@@ -325,7 +446,7 @@ export function App() {
             <PanelTitle title="Response" detail={responseMethod} detailClass="method-badge" />
             <pre>
               {chat?.answer ??
-                'Ask a question to retrieve cited evidence. Index the sample filing first if the corpus is empty.'}
+                'No response yet.'}
             </pre>
             {chat && (
               <div className="citation-strip" aria-label="Citations">
@@ -424,7 +545,7 @@ export function App() {
               tone={evalSummary ? (evalSummary.regression_pass_rate >= 0.8 ? 'pass' : 'warn') : ''}
             />
             <StatLine label="Citation check" value={citationStatus} tone={citationStatusClass} />
-            <StatLine label="Cost / query" value={costDisplay} />
+            <StatLine label="API cost estimate" value={costDisplay} />
             {evalSummary?.mode_results.map((result) => (
               <div className="mode-result" key={result.mode}>
                 <strong>{result.mode}</strong>
@@ -536,6 +657,19 @@ function retrievalMethod(mode: string): string {
   }
 }
 
+function buildQuestionSuggestions(company: string, ticker: string): string[] {
+  const label = company.trim() || ticker.trim() || 'the company'
+  const tickerLabel = ticker.trim() || label
+  return [
+    `What are the main risk factors ${label} discloses?`,
+    `Summarize ${label}'s revenue and margin drivers with citations.`,
+    `What does ${label} disclose about liquidity, debt, and capital allocation?`,
+    `Extract notable events, accounting changes, or operational updates for ${tickerLabel}.`,
+    `Generate a cited research thesis for ${label}, separating facts from inference.`,
+    `What evidence is available for demand, supply, or customer concentration risk at ${label}?`
+  ]
+}
+
 function clamp(text: string, max: number): string {
   if (text.length <= max) return text
   return `${text.slice(0, max).trimEnd()}...`
@@ -549,9 +683,9 @@ function formatClock(): string {
 }
 
 function formatCost(summary: EvalSummary | null): string {
-  if (!summary || summary.mode_results.length === 0) return 'Local'
+  if (!summary || summary.mode_results.length === 0) return 'Not estimated'
   const total = summary.mode_results.reduce((acc, m) => acc + m.estimated_cost_usd, 0)
   const avg = total / summary.mode_results.length
-  if (avg <= 0) return 'Local (no API)'
-  return `$${avg.toFixed(5)}`
+  if (avg <= 0) return 'Local'
+  return `est $${avg.toFixed(5)}`
 }

@@ -129,7 +129,8 @@ h2 {
 .query-actions,
 .sample-row,
 .panel-title,
-.mode-toggle {
+.mode-toggle,
+.scope-toggle {
   align-items: center;
   display: flex;
   gap: 8px;
@@ -202,7 +203,7 @@ h2 {
 .app-grid {
   display: grid;
   gap: 14px;
-  grid-template-columns: 310px minmax(0, 1fr) 360px;
+  grid-template-columns: 330px minmax(0, 1fr) 340px;
 }
 
 .source-column,
@@ -269,33 +270,50 @@ h2 {
   font-size: 11px;
 }
 
+.source-tabs {
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  padding: 2px;
+}
+
+.source-tabs button {
+  border: 0;
+  color: var(--muted);
+  font-size: 12px;
+  min-height: 28px;
+  padding: 0 8px;
+}
+
+.source-tabs button.active {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
 .source-block {
   border-top: 1px solid var(--border);
   display: grid;
   gap: 10px;
-  margin-top: 14px;
+  margin-top: 4px;
   padding-top: 14px;
 }
 
-.demo-source {
-  background: var(--surface-3);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 12px;
+.source-kicker {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
 }
 
-.demo-source div {
-  display: grid;
-  gap: 3px;
-}
-
-.demo-source strong {
+.source-kicker strong {
   font-size: 13px;
   font-weight: 600;
 }
 
-.demo-source span,
-.inline-status {
+.source-kicker span,
+.inline-status,
+.source-summary span {
   color: var(--muted);
   font-size: 12px;
   line-height: 1.45;
@@ -310,10 +328,19 @@ h2 {
   padding: 8px 10px;
 }
 
-.source-block:first-of-type:not(.demo-source) {
-  border-top: 0;
-  margin-top: 0;
-  padding-top: 0;
+.source-summary {
+  align-items: center;
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  padding-top: 12px;
+}
+
+.source-summary strong {
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 500;
 }
 
 .field,
@@ -400,7 +427,7 @@ textarea:focus {
 
 .query-panel {
   display: grid;
-  gap: 12px;
+  gap: 14px;
 }
 
 .query-bar {
@@ -414,14 +441,23 @@ textarea:focus {
   margin: 0;
 }
 
-.mode-toggle {
+.query-controls {
+  align-items: flex-end;
+  display: grid;
+  gap: 8px;
+  justify-items: end;
+}
+
+.mode-toggle,
+.scope-toggle {
   background: var(--surface-3);
   border: 1px solid var(--border);
   border-radius: 4px;
   padding: 2px;
 }
 
-.mode-toggle button {
+.mode-toggle button,
+.scope-toggle button {
   background: transparent;
   border: 0;
   color: var(--muted);
@@ -432,9 +468,59 @@ textarea:focus {
   padding: 0 12px;
 }
 
-.mode-toggle button.active {
+.mode-toggle button.active,
+.scope-toggle button.active {
   background: var(--surface-2);
   color: var(--text);
+}
+
+.scope-toggle button {
+  min-width: 98px;
+}
+
+.question-deck {
+  align-items: stretch;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.question-cycle {
+  align-items: flex-start;
+  background: var(--surface-3);
+  border-color: var(--border);
+  display: grid;
+  gap: 3px;
+  justify-content: stretch;
+  min-height: 62px;
+  padding: 10px 12px;
+  text-align: left;
+  width: 100%;
+}
+
+.question-cycle span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.question-cycle strong {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.deck-actions {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 34px 34px;
+}
+
+.icon-button {
+  min-height: 62px;
+  padding: 0;
+  width: 34px;
 }
 
 textarea {
@@ -453,29 +539,21 @@ textarea {
 
 .sample-row {
   flex-wrap: wrap;
+  min-width: 0;
 }
 
 .sample-row button {
   color: var(--muted);
   font-size: 12px;
   min-height: 28px;
-}
-
-.submit-cluster {
-  align-items: center;
-  display: flex;
-  gap: 12px;
+  max-width: 290px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .submit-button {
   min-width: 108px;
-}
-
-.shortcut-hint {
-  color: var(--subtle);
-  font-family: var(--mono);
-  font-size: 11px;
-  letter-spacing: 0;
 }
 
 .answer-panel,
