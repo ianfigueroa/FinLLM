@@ -3,7 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from agent.planner import Planner
-from agent.prompts import ANSWER_POLICY
 from agent.verifier import CitationVerifier
 from retrieval.citations import Citation, CitationValidation, build_citations
 from retrieval.embeddings import tokenize
@@ -89,7 +88,6 @@ class ResearchAgent:
             sentence = _best_sentence(result.chunk.text, query_terms)
             lines.append(f"- {sentence} [{citation.marker}]")
         lines.append("Inference: Limited to the cited retrieved evidence.")
-        lines.append(f"Policy: {ANSWER_POLICY}")
         return "\n".join(lines)
 
     def _insufficient_response(self, reason: str) -> AgentResponse:

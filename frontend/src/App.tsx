@@ -1,4 +1,13 @@
-import { BarChart3, Clock3, Database, FileSearch, Play, Send } from 'lucide-react'
+import {
+  BarChart3,
+  CheckCircle2,
+  Clock3,
+  Database,
+  FileSearch,
+  Play,
+  Send,
+  ShieldCheck
+} from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 
 import { getIngestionStatus, ingestSample, runEval, sendChat } from './api'
@@ -8,6 +17,12 @@ const SAMPLE_QUESTIONS = [
   'What risk factors did Acme disclose?',
   'Why did Acme margins expand?',
   'Generate a cited research thesis for Acme.'
+]
+
+const MODES = [
+  { id: 'basic_rag', label: 'Basic' },
+  { id: 'rag_rerank', label: 'Rerank' },
+  { id: 'self_verify', label: 'Verify' }
 ]
 
 export function App() {
@@ -29,6 +44,14 @@ export function App() {
     if (!chat || !selectedCitation) return null
     return chat.retrieved_chunks.find((chunk) => chunk.chunk_id === selectedCitation.chunk_id) ?? null
   }, [chat, selectedCitation])
+
+  const verificationLabel = chat
+    ? chat.verification.passed
+      ? 'Verified'
+      : 'Review'
+    : 'Pending'
+
+  const confidence = chat ? `${Math.round(chat.confidence * 100)}%` : '0%'
 
   async function handleIngest() {
     await runAction('ingest', async () => {
@@ -68,16 +91,27 @@ export function App() {
   return (
     <main className="workspace">
       <header className="topbar">
-        <div>
-          <p className="eyebrow">FinLLM Research Agent</p>
-          <h1>Cited financial research console</h1>
+        <div className="brand-block">
+          <p className="eyebrow">FinLLM</p>
+          <h1>Research Workbench</h1>
+          <span>Grounded answers over filings, with inspectable evidence.</span>
         </div>
         <div className="actions">
-          <button title="Ingest sample filing" onClick={handleIngest} disabled={loading === 'ingest'}>
-            <Database size={17} /> Ingest
+          <button
+            className="secondary-action"
+            title="Index sample filing"
+            onClick={handleIngest}
+            disabled={loading === 'ingest'}
+          >
+            <Database size={16} /> Index sample
           </button>
-          <button title="Run evaluation" onClick={handleEval} disabled={loading === 'eval'}>
-            <BarChart3 size={17} /> Eval
+          <button
+            className="secondary-action"
+            title="Run evaluation"
+            onClick={handleEval}
+            disabled={loading === 'eval'}
+          >
+            <BarChart3 size={16} /> Run eval
           </button>
         </div>
       </header>
@@ -85,38 +119,58 @@ export function App() {
       {error && <div className="error">{error}</div>}
 
       <section className="metrics-strip">
-        <Metric icon={<Database size={18} />} label="Indexed chunks" value={status.chunks_indexed} />
-        <Metric icon={<Clock3 size={18} />} label="Last latency" value={`${latencyMs} ms`} />
-        <Metric icon={<FileSearch size={18} />} label="Mode" value={mode} />
-        <Metric icon={<BarChart3 size={18} />} label="Est. cost" value="$0.00 local" />
+        <Metric icon={<Database size={17} />} label="Indexed" value={status.chunks_indexed} />
+        <Metric icon={<Clock3 size={17} />} label="Latency" value={`${latencyMs} ms`} />
+        <Metric icon={<ShieldCheck size={17} />} label="Citation check" value={verificationLabel} />
+        <Metric icon={<BarChart3 size={17} />} label="Confidence" value={confidence} />
       </section>
 
       <section className="layout">
         <div className="primary-panel">
-          <div className="question-row">
-            <select value={mode} onChange={(event) => setMode(event.target.value)}>
-              <option value="basic_rag">Basic RAG</option>
-              <option value="rag_rerank">RAG + reranker</option>
-              <option value="self_verify">Self verification</option>
-            </select>
-            <button title="Ask question" onClick={handleAsk} disabled={loading === 'chat' || !question.trim()}>
-              <Send size={17} /> Ask
-            </button>
+          <div className="query-header">
+            <div>
+              <h2>Query</h2>
+              <p>Mode controls retrieval and verification depth.</p>
+            </div>
+            <div className="mode-toggle" role="group" aria-label="Research mode">
+              {MODES.map((option) => (
+                <button
+                  key={option.id}
+                  className={mode === option.id ? 'active' : ''}
+                  onClick={() => setMode(option.id)}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
           </div>
 
           <textarea value={question} onChange={(event) => setQuestion(event.target.value)} />
 
-          <div className="sample-row">
-            {SAMPLE_QUESTIONS.map((sample) => (
-              <button key={sample} onClick={() => setQuestion(sample)}>
-                <Play size={14} /> {sample}
-              </button>
-            ))}
+          <div className="query-footer">
+            <div className="sample-row">
+              {SAMPLE_QUESTIONS.map((sample) => (
+                <button key={sample} onClick={() => setQuestion(sample)}>
+                  <Play size={13} /> {sample}
+                </button>
+              ))}
+            </div>
+            <button
+              className="primary-action"
+              title="Submit research query"
+              onClick={handleAsk}
+              disabled={loading === 'chat' || !question.trim()}
+            >
+              <Send size={16} /> Submit
+            </button>
           </div>
 
           <section className="answer">
-            <h2>Answer</h2>
-            <pre>{chat?.answer ?? 'Ingest the sample filing, then ask a research question.'}</pre>
+            <div className="section-heading">
+              <h2>Response</h2>
+              <span>{chat?.mode ?? mode}</span>
+            </div>
+            <pre>{chat?.answer ?? 'Index the sample filing, then submit a research question.'}</pre>
             {chat && (
               <div className="citation-row">
                 {chat.citations.map((citation) => (
@@ -126,6 +180,7 @@ export function App() {
                     onClick={() => setSelectedCitation(citation)}
                   >
                     {citation.marker}
+                    <span>{citation.section ?? citation.ticker ?? 'Source'}</span>
                   </button>
                 ))}
               </div>
@@ -133,7 +188,10 @@ export function App() {
           </section>
 
           <section className="chunks">
-            <h2>Retrieved chunks</h2>
+            <div className="section-heading">
+              <h2>Retrieved Evidence</h2>
+              <span>{chat?.retrieved_chunks.length ?? 0} chunks</span>
+            </div>
             {chat?.retrieved_chunks.map((chunk) => (
               <article key={chunk.chunk_id} className="chunk-row">
                 <div>
@@ -147,10 +205,12 @@ export function App() {
         </div>
 
         <aside className="source-panel">
-          <h2>Source inspector</h2>
+          <div className="section-heading">
+            <h2>Source</h2>
+            <span>{selectedCitation?.marker ?? 'No citation'}</span>
+          </div>
           {selectedCitation ? (
             <>
-              <p className="marker">{selectedCitation.marker}</p>
               <dl>
                 <dt>Section</dt>
                 <dd>{selectedCitation.section}</dd>
@@ -162,10 +222,13 @@ export function App() {
               <p className="snippet">{selectedChunk?.text ?? selectedCitation.snippet}</p>
             </>
           ) : (
-            <p className="muted">Select a citation to inspect the source chunk.</p>
+              <p className="muted">Select a citation to inspect the source chunk.</p>
           )}
 
-          <h2>Evaluation</h2>
+          <div className="section-heading compact">
+            <h2>Evaluation</h2>
+            <CheckCircle2 size={16} />
+          </div>
           <div className="eval-box">
             <span>Regression pass rate</span>
             <strong>{evalSummary ? `${Math.round(evalSummary.regression_pass_rate * 100)}%` : 'Not run'}</strong>
@@ -173,6 +236,10 @@ export function App() {
           <div className="eval-box">
             <span>Citation check</span>
             <strong>{chat ? (chat.verification.passed ? 'Pass' : 'Review') : 'Waiting'}</strong>
+          </div>
+          <div className="eval-box">
+            <span>Estimated cost</span>
+            <strong>$0.00 local</strong>
           </div>
           <p className="muted">{chat?.disclaimer ?? 'Research outputs are not financial advice.'}</p>
         </aside>
