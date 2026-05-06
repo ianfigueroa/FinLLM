@@ -86,12 +86,13 @@ class ResearchAgent:
         filters: dict[str, str] | None,
         limit: int,
     ) -> list[SearchResult]:
+        retrieval_query = _expanded_retrieval_query(question)
         if self._mode == "basic_rag":
-            return self._vector_store.search(question, filters=filters, limit=limit)
+            return self._vector_store.search(retrieval_query, filters=filters, limit=limit)
         results = HybridSearch(self._vector_store).search(
-            question, filters=filters, limit=max(limit * 2, limit)
+            retrieval_query, filters=filters, limit=max(limit * 2, limit)
         )
-        return self._reranker.rerank(question, results, limit=limit)
+        return self._reranker.rerank(retrieval_query, results, limit=limit)
 
     def _draft_grounded_answer(
         self,
@@ -100,7 +101,19 @@ class ResearchAgent:
         citations: list[Citation],
         tool_calls: list[ToolCallRecord],
     ) -> str:
-        query_terms = set(tokenize(question)) - {"what", "does", "did", "the", "about", "mention"}
+        query_terms = set(tokenize(_expanded_retrieval_query(question))) - {
+            "about",
+            "and",
+            "are",
+            "did",
+            "does",
+            "main",
+            "mention",
+            "the",
+            "there",
+            "what",
+            "with",
+        }
         lines = ["Facts from retrieved evidence:"]
         for result, citation in zip(results, citations, strict=True):
             sentence = _best_sentence(result.chunk.text, query_terms)
@@ -219,6 +232,24 @@ def _best_sentence(text: str, query_terms: set[str]) -> str:
     if not sentences:
         return "Retrieved chunk contains no sentence-like evidence."
     return max(sentences, key=lambda sentence: len(set(tokenize(sentence)) & query_terms))
+
+
+def _expanded_retrieval_query(question: str) -> str:
+    query_terms = set(tokenize(question))
+    expansions: list[str] = []
+    if {"revenue", "revenues", "margin", "margins", "driver", "drivers"} & query_terms:
+        expansions.append(
+            "revenues revenue growth operating income operating margin cost of revenues "
+            "traffic acquisition costs expenses infrastructure demand cloud search"
+        )
+    if {"liquidity", "debt", "capital", "cash"} & query_terms:
+        expansions.append(
+            "sources uses cash cash equivalents marketable securities debt capital expenditures "
+            "share repurchases operating cash flow financing"
+        )
+    if not expansions:
+        return question
+    return f"{question} {' '.join(expansions)}"
 
 
 def _sentence_candidates(text: str) -> list[str]:

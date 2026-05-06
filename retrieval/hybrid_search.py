@@ -112,10 +112,31 @@ def _normalize_scores(scores: dict[str, float]) -> dict[str, float]:
 
 def _section_intent_scores(query: str, chunks: list[DocumentChunk]) -> dict[str, float]:
     query_terms = set(tokenize(query))
-    if not ({"risk", "risks"} & query_terms and {"factor", "factors"} & query_terms):
-        return {}
-    return {
-        chunk.chunk_id: 1.0
-        for chunk in chunks
-        if "risk factors" in (chunk.metadata.section or "").lower()
-    }
+    if {"risk", "risks"} & query_terms and {"factor", "factors"} & query_terms:
+        return {
+            chunk.chunk_id: 1.0
+            for chunk in chunks
+            if "risk factors" in (chunk.metadata.section or "").lower()
+        }
+    if _is_mdna_query(query_terms):
+        return {
+            chunk.chunk_id: 0.8
+            for chunk in chunks
+            if _is_mdna_section((chunk.metadata.section or "").lower())
+        }
+    return {}
+
+
+def _is_mdna_query(query_terms: set[str]) -> bool:
+    return bool(
+        {"revenue", "revenues", "margin", "margins", "driver", "drivers", "growth"}
+        & query_terms
+    )
+
+
+def _is_mdna_section(section: str) -> bool:
+    return (
+        ("management" in section and "discussion" in section)
+        or "results of operations" in section
+        or "liquidity and capital resources" in section
+    )
