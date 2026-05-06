@@ -17,6 +17,8 @@ The project is a working local MVP. It can:
 - compare basic RAG, RAG with reranking, and self-verification mode;
 - run calculator, metadata SQL, local market data, simple backtest, ratio, and restricted Python-analysis tools;
 - generate RAFT-style examples, export LoRA-style JSONL records, and simulate LoRA reports;
+- configure optional OpenAI-compatible embeddings, Ollama generation, or OpenAI-compatible chat generation;
+- persist eval run history for quality and best-mode tracking;
 - run local evals for retrieval precision, citation correctness, hallucination proxy, relevance, latency, cost, and tool success.
 
 The deliberately honest limits:
@@ -95,8 +97,10 @@ https://www.sec.gov/ix?doc=/Archives/edgar/data/0001045810/000104581026000021/nv
 - `GET /api/v1/ingestions/status`
 - `POST /api/v1/chat`
 - `POST /api/v1/evals`
+- `GET /api/v1/evals/history`
 - `POST /api/v1/finetuning/raft`
 - `POST /api/v1/finetuning/raft/export`
+- `GET /api/v1/system/status`
 
 Example chat request:
 
@@ -155,8 +159,8 @@ Latest local verification:
 
 - `ruff`: passed
 - `mypy`: passed
-- `pytest`: `88 passed`
-- coverage: `94.97%`
+- `pytest`: `104 passed`
+- coverage: `93.55%`
 - frontend build: passed
 - `pip-audit`: no known vulnerabilities
 
