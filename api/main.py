@@ -11,7 +11,13 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from agent.graph import AgentResponse, ResearchAgent
 from agent.memory import ConversationMemory, MemoryTurn
-from api.schemas import ApiResponse, ChatRequest, RaftExperimentRequest, SecUrlIngestionRequest
+from api.schemas import (
+    ApiResponse,
+    ChatRequest,
+    RaftExperimentRequest,
+    SecUrlIngestionRequest,
+    SecUrlMetadataRequest,
+)
 from evals.citation_eval import citation_correctness
 from evals.datasets import SAMPLE_EVAL_CASES
 from evals.hallucination_eval import hallucination_rate
@@ -26,7 +32,11 @@ from finetuning.train_lora import simulate_lora_training
 from ingestion.chunker import chunk_document
 from ingestion.metadata import Document, DocumentChunk, DocumentMetadata
 from ingestion.sec_loader import load_sec_filing
-from ingestion.sec_url_loader import load_sec_filing_url
+from ingestion.sec_url_loader import (
+    SecFilingMetadata,
+    fetch_sec_filing_metadata,
+    load_sec_filing_url,
+)
 from ingestion.upload_loader import UploadedFileError, extract_upload_text
 from observability.structured_logger import StructuredLogger
 from retrieval.chroma_store import ChromaVectorStore
@@ -159,7 +169,7 @@ def create_app() -> FastAPI:
 
         chunks = chunk_document(document, max_chars=420, overlap_chars=60)
         state.store.upsert(chunks)
-        ticker = request.ticker.upper()
+        ticker = (document.metadata.ticker or request.ticker).upper()
         state.logger.event(
             "ingestion.sec_url.completed",
             documents=1,
@@ -172,9 +182,22 @@ def create_app() -> FastAPI:
                 "documents_ingested": 1,
                 "chunks_indexed": len(chunks),
                 "ticker": ticker,
+                "company": document.metadata.company,
+                "form_type": document.metadata.form_type,
+                "filing_date": document.metadata.filing_date,
                 "source_url": document.metadata.source_url,
             }
         )
+
+    @app.post("/api/v1/ingestions/sec-url/metadata", response_model=ApiResponse)
+    def sec_url_metadata(request: SecUrlMetadataRequest) -> ApiResponse:
+        try:
+            metadata = fetch_sec_filing_metadata(request.url)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except httpx.HTTPError as exc:
+            raise HTTPException(status_code=502, detail="SEC filing fetch failed") from exc
+        return ApiResponse(data=_sec_metadata_payload(metadata))
 
     @app.get("/api/v1/ingestions/status", response_model=ApiResponse)
     def ingestion_status() -> ApiResponse:
@@ -311,6 +334,16 @@ def _agent_response_payload(response: AgentResponse) -> dict[str, object]:
             for result in response.retrieved_chunks
         ],
         "verification": response.verification.__dict__,
+    }
+
+
+def _sec_metadata_payload(metadata: SecFilingMetadata) -> dict[str, str]:
+    return {
+        "source_url": metadata.source_url,
+        "ticker": metadata.ticker,
+        "company": metadata.company,
+        "form_type": metadata.form_type,
+        "filing_date": metadata.filing_date,
     }
 
 

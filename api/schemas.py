@@ -13,10 +13,14 @@ class ChatRequest(BaseModel):
 
 class SecUrlIngestionRequest(BaseModel):
     url: str = Field(min_length=20, max_length=1_000)
-    ticker: str = Field(min_length=1, max_length=12)
-    company: str = Field(min_length=1, max_length=120)
-    form_type: str = Field(min_length=1, max_length=32)
-    filing_date: str = Field(min_length=4, max_length=32)
+    ticker: str = Field(default="", max_length=12)
+    company: str = Field(default="", max_length=120)
+    form_type: str = Field(default="", max_length=32)
+    filing_date: str = Field(default="", max_length=32)
+
+
+class SecUrlMetadataRequest(BaseModel):
+    url: str = Field(min_length=20, max_length=1_000)
 
 
 class RaftExperimentRequest(BaseModel):
