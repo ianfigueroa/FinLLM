@@ -46,6 +46,7 @@ export interface EvalSummary {
   cases: Array<Record<string, unknown>>
   mode_results: ModeEvalResult[]
   best_mode: string
+  run_id?: string
 }
 
 export interface ModeEvalResult {
@@ -93,6 +94,22 @@ export interface IndexedDocument {
 export interface IngestionStatus {
   chunks_indexed: number
   documents: IndexedDocument[]
+}
+
+export interface EvalHistory {
+  summary: {
+    runs: number
+    latest_best_mode: string
+    latest_quality_score: number
+    average_regression_pass_rate: number
+  }
+  runs: Array<{
+    run_id: string
+    created_at: string
+    regression_pass_rate: number
+    best_mode: string
+    mode_results: ModeEvalResult[]
+  }>
 }
 
 export interface SecUrlIngestionRequest {

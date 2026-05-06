@@ -1,6 +1,7 @@
 import type {
   ChatResponse,
   DocumentUploadRequest,
+  EvalHistory,
   EvalSummary,
   IngestionStatus,
   IngestionResult,
@@ -67,6 +68,14 @@ export function sendChat(
 
 export function runEval(): Promise<EvalSummary> {
   return postJson('/api/v1/evals')
+}
+
+export async function getEvalHistory(): Promise<EvalHistory> {
+  const response = await fetch(`${API_BASE}/api/v1/evals/history`)
+  if (!response.ok) {
+    throw new Error(`API request failed with ${response.status}`)
+  }
+  return (await response.json()).data
 }
 
 export function runRaftExperiment(): Promise<RaftExperimentResult> {

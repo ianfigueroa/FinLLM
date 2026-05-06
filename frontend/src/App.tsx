@@ -16,6 +16,7 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   detectSecMetadata,
   exportRaftDataset,
+  getEvalHistory,
   getIngestionStatus,
   ingestSample,
   ingestSecUrl,
@@ -24,7 +25,14 @@ import {
   sendChat,
   uploadDocument
 } from './api'
-import type { ChatResponse, Citation, EvalSummary, IngestionStatus, RaftExperimentResult } from './types'
+import type {
+  ChatResponse,
+  Citation,
+  EvalHistory,
+  EvalSummary,
+  IngestionStatus,
+  RaftExperimentResult
+} from './types'
 
 const FALLBACK_QUESTION = 'What are the main risk factors in the indexed filing?'
 
@@ -72,6 +80,7 @@ export function App() {
   const [indexedAt, setIndexedAt] = useState<string>('')
   const [chat, setChat] = useState<ChatResponse | null>(null)
   const [evalSummary, setEvalSummary] = useState<EvalSummary | null>(null)
+  const [evalHistory, setEvalHistory] = useState<EvalHistory | null>(null)
   const [raftSummary, setRaftSummary] = useState<RaftExperimentResult | null>(null)
   const [selectedCitation, setSelectedCitation] = useState<Citation | null>(null)
   const [secForm, setSecForm] = useState({
@@ -96,6 +105,7 @@ export function App() {
 
   useEffect(() => {
     getIngestionStatus().then(setStatus).catch(() => setStatus({ chunks_indexed: 0, documents: [] }))
+    refreshEvalHistory()
   }, [])
 
   useEffect(() => {
@@ -249,6 +259,7 @@ export function App() {
   async function handleEval() {
     await runAction('eval', async () => {
       setEvalSummary(await runEval())
+      await refreshEvalHistory()
     })
   }
 
@@ -270,6 +281,14 @@ export function App() {
       link.remove()
       window.URL.revokeObjectURL(url)
     })
+  }
+
+  async function refreshEvalHistory() {
+    try {
+      setEvalHistory(await getEvalHistory())
+    } catch {
+      setEvalHistory(null)
+    }
   }
 
   async function runAction(name: string, action: () => Promise<void>) {
@@ -636,6 +655,15 @@ export function App() {
             <StatLine label="Citation check" value={citationStatus} tone={citationStatusClass} />
             <StatLine label="API cost estimate" value={costDisplay} />
             <StatLine label="Best mode" value={evalSummary?.best_mode ?? 'Not run'} />
+            <StatLine label="Stored eval runs" value={evalHistory ? String(evalHistory.summary.runs) : '0'} />
+            <StatLine
+              label="Latest quality"
+              value={
+                evalHistory && evalHistory.summary.latest_quality_score
+                  ? `${Math.round(evalHistory.summary.latest_quality_score * 100)}%`
+                  : 'Not run'
+              }
+            />
             {evalSummary?.mode_results.map((result) => (
               <div className="mode-result" key={result.mode}>
                 <strong>{result.mode}</strong>
