@@ -77,6 +77,24 @@ export function runRaftExperiment(): Promise<RaftExperimentResult> {
   })
 }
 
+export async function exportRaftDataset(): Promise<Blob> {
+  const response = await fetch(`${API_BASE}/api/v1/finetuning/raft/export`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      max_examples: 200,
+      distractor_count: 2,
+      base_model: 'local-sim'
+    })
+  })
+  if (!response.ok) {
+    const errorPayload = await response.json().catch(() => null)
+    const detail = errorPayload?.detail ? `: ${errorPayload.detail}` : ''
+    throw new Error(`API request failed with ${response.status}${detail}`)
+  }
+  return response.blob()
+}
+
 export async function getIngestionStatus(): Promise<IngestionStatus> {
   const response = await fetch(`${API_BASE}/api/v1/ingestions/status`)
   if (!response.ok) {

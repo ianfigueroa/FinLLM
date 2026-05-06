@@ -45,10 +45,12 @@ export interface EvalSummary {
   regression_pass_rate: number
   cases: Array<Record<string, unknown>>
   mode_results: ModeEvalResult[]
+  best_mode: string
 }
 
 export interface ModeEvalResult {
   mode: string
+  quality_score: number
   retrieval_precision: number
   retrieval_recall_at_5: number
   retrieval_mrr: number

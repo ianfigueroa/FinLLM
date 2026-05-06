@@ -894,6 +894,13 @@ dd {
   font-variant-numeric: tabular-nums;
 }
 
+.mode-result .export-button {
+  grid-column: 1 / -1;
+  justify-self: start;
+  margin-top: 4px;
+  min-height: 28px;
+}
+
 .disclaimer {
   margin-bottom: 0;
 }

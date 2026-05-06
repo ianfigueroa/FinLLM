@@ -4,6 +4,7 @@ import {
   ChevronRight,
   Clock3,
   Database,
+  Download,
   FileSearch,
   Link2,
   Send,
@@ -14,6 +15,7 @@ import { useEffect, useMemo, useState } from 'react'
 
 import {
   detectSecMetadata,
+  exportRaftDataset,
   getIngestionStatus,
   ingestSample,
   ingestSecUrl,
@@ -49,7 +51,8 @@ const LOADING_LABELS: Record<string, string> = {
   upload: 'Uploading',
   chat: 'Researching',
   eval: 'Evaluating',
-  raft: 'Generating'
+  raft: 'Generating',
+  'raft-export': 'Exporting'
 }
 
 const EVIDENCE_PREVIEW_CHARS = 280
@@ -255,6 +258,20 @@ export function App() {
     })
   }
 
+  async function handleRaftExport() {
+    await runAction('raft-export', async () => {
+      const blob = await exportRaftDataset()
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = 'finllm-raft-lora.jsonl'
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(url)
+    })
+  }
+
   async function runAction(name: string, action: () => Promise<void>) {
     setError('')
     setLoading(name)
@@ -298,6 +315,9 @@ export function App() {
           </button>
           <button onClick={handleRaft} disabled={isBusy} title="Generate RAFT examples">
             <FileSearch size={14} /> Generate RAFT data
+          </button>
+          <button onClick={handleRaftExport} disabled={isBusy} title="Export LoRA JSONL records">
+            <Download size={14} /> Export JSONL
           </button>
         </div>
       </header>
@@ -615,9 +635,11 @@ export function App() {
             />
             <StatLine label="Citation check" value={citationStatus} tone={citationStatusClass} />
             <StatLine label="API cost estimate" value={costDisplay} />
+            <StatLine label="Best mode" value={evalSummary?.best_mode ?? 'Not run'} />
             {evalSummary?.mode_results.map((result) => (
               <div className="mode-result" key={result.mode}>
                 <strong>{result.mode}</strong>
+                <span>quality {Math.round(result.quality_score * 100)}%</span>
                 <span>precision {Math.round(result.retrieval_precision * 100)}%</span>
                 <span>recall@5 {Math.round(result.retrieval_recall_at_5 * 100)}%</span>
                 <span>mrr {result.retrieval_mrr.toFixed(2)}</span>
@@ -632,6 +654,9 @@ export function App() {
                 <span>{raftSummary.raft_examples} examples</span>
                 <span>{raftSummary.lora_records} records</span>
                 <span>{String(raftSummary.training_report.status)}</span>
+                <button className="export-button" onClick={handleRaftExport} disabled={isBusy}>
+                  <Download size={13} /> Export JSONL
+                </button>
               </div>
             )}
           </section>
