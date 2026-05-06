@@ -35,7 +35,8 @@ class HybridSearch:
 
         scored: list[tuple[str, float]] = []
         for chunk_id in candidate_ids:
-            dense_score = dense_results.get(chunk_id).score if chunk_id in dense_results else 0.0
+            dense_result = dense_results.get(chunk_id)
+            dense_score = dense_result.score if dense_result else 0.0
             sparse_score = sparse_scores.get(chunk_id, 0.0)
             score = (self._dense_weight * dense_score) + ((1 - self._dense_weight) * sparse_score)
             if score > 0:

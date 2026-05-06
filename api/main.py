@@ -6,7 +6,7 @@ from typing import Annotated
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile, status
 
-from agent.graph import ResearchAgent
+from agent.graph import AgentResponse, ResearchAgent
 from api.schemas import ApiResponse, ChatRequest
 from evals.datasets import SAMPLE_EVAL_CASES
 from evals.regression_tests import run_regression_cases
@@ -130,7 +130,7 @@ def create_app() -> FastAPI:
 app = create_app()
 
 
-def _agent_response_payload(response: object) -> dict[str, object]:
+def _agent_response_payload(response: AgentResponse) -> dict[str, object]:
     return {
         "answer": response.answer,
         "confidence": response.confidence,

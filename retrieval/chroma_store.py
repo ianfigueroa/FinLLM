@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from ingestion.metadata import DocumentChunk, DocumentMetadata
 from retrieval.embeddings import EmbeddingModel
@@ -30,7 +30,9 @@ class ChromaVectorStore:
         self._collection.upsert(
             ids=[chunk.chunk_id for chunk in chunks],
             documents=[chunk.text for chunk in chunks],
-            embeddings=[self._embedding_model.embed(chunk.text) for chunk in chunks],
+            embeddings=[  # type: ignore[arg-type]
+                self._embedding_model.embed(chunk.text) for chunk in chunks
+            ],
             metadatas=[_metadata_to_chroma(chunk) for chunk in chunks],
         )
 
@@ -45,14 +47,18 @@ class ChromaVectorStore:
             raise ValueError("limit must be positive")
 
         query_result = self._collection.query(
-            query_embeddings=[self._embedding_model.embed(query)],
+            query_embeddings=[self._embedding_model.embed(query)],  # type: ignore[arg-type]
             n_results=limit,
-            where=filters or None,
+            where=filters or None,  # type: ignore[arg-type]
         )
-        ids = query_result.get("ids", [[]])[0]
-        documents = query_result.get("documents", [[]])[0]
-        metadatas = query_result.get("metadatas", [[]])[0]
-        distances = query_result.get("distances", [[]])[0]
+        raw_ids = query_result.get("ids") or [[]]
+        raw_documents = query_result.get("documents") or [[]]
+        raw_metadatas = query_result.get("metadatas") or [[]]
+        raw_distances = query_result.get("distances") or [[]]
+        ids = cast(list[str], raw_ids[0])
+        documents = cast(list[str], raw_documents[0])
+        metadatas = cast(list[dict[str, Any]], raw_metadatas[0])
+        distances = cast(list[float], raw_distances[0])
 
         results: list[SearchResult] = []
         for rank, (chunk_id, text, metadata, distance) in enumerate(

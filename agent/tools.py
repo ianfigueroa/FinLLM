@@ -248,14 +248,17 @@ def _eval_arithmetic(node: ast.AST, operators: dict[type[ast.AST], Any]) -> floa
         operator_fn = operators.get(type(node.op))
         if operator_fn is None:
             raise ValueError("unsupported arithmetic operator")
-        return operator_fn(
-            _eval_arithmetic(node.left, operators), _eval_arithmetic(node.right, operators)
+        return float(
+            operator_fn(
+                _eval_arithmetic(node.left, operators),
+                _eval_arithmetic(node.right, operators),
+            )
         )
     if isinstance(node, ast.UnaryOp):
         operator_fn = operators.get(type(node.op))
         if operator_fn is None:
             raise ValueError("unsupported unary operator")
-        return operator_fn(_eval_arithmetic(node.operand, operators))
+        return float(operator_fn(_eval_arithmetic(node.operand, operators)))
     raise ValueError("unsupported expression")
 
 
