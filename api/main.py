@@ -6,7 +6,7 @@ from time import perf_counter
 from typing import Annotated
 
 import httpx
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile, status
+from fastapi import FastAPI, File, Form, HTTPException, Response, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 
 from agent.graph import AgentResponse, ResearchAgent
@@ -26,7 +26,7 @@ from evals.regression_tests import run_regression_cases
 from evals.retrieval_eval import mean_reciprocal_rank, retrieval_recall_at_k
 from evals.tool_eval import tool_call_success_rate
 from finetuning.evaluate_finetuned import simulate_finetuned_eval
-from finetuning.make_lora_dataset import make_lora_records
+from finetuning.make_lora_dataset import make_lora_jsonl, make_lora_records
 from finetuning.make_raft_dataset import make_raft_examples
 from finetuning.train_lora import simulate_lora_training
 from ingestion.chunker import chunk_document
@@ -267,6 +267,7 @@ def create_app() -> FastAPI:
                 "regression_pass_rate": pass_rate,
                 "cases": results,
                 "mode_results": mode_results,
+                "best_mode": _best_mode(mode_results),
             }
         )
 
@@ -307,6 +308,35 @@ def create_app() -> FastAPI:
                 "training_report": training_report,
                 "eval_report": eval_report,
             }
+        )
+
+    @app.post("/api/v1/finetuning/raft/export")
+    def export_raft_dataset(request: RaftExperimentRequest) -> Response:
+        chunks = state.store.all_chunks()
+        if not chunks:
+            raise HTTPException(
+                status_code=400,
+                detail="Index documents before exporting RAFT data",
+            )
+
+        examples = make_raft_examples(
+            chunks,
+            questions_per_chunk=1,
+            distractor_count=request.distractor_count,
+        )[: request.max_examples]
+        records = make_lora_records(examples)
+        jsonl = make_lora_jsonl(records)
+        state.logger.event(
+            "finetuning.raft.exported",
+            raft_examples=len(examples),
+            lora_records=len(records),
+        )
+        return Response(
+            content=jsonl,
+            media_type="application/x-ndjson",
+            headers={
+                "Content-Disposition": 'attachment; filename="finllm-raft-lora.jsonl"'
+            },
         )
 
     return app
@@ -439,7 +469,38 @@ def _evaluate_modes(state: AppState) -> list[dict[str, object]]:
                 "tool_call_success_rate": tool_call_success_rate(tool_successes),
             }
         )
+        mode_results[-1]["quality_score"] = _quality_score(mode_results[-1])
     return mode_results
+
+
+def _quality_score(result: dict[str, object]) -> float:
+    citation = _float_metric(result["citation_correctness"])
+    recall = _float_metric(result["retrieval_recall_at_5"])
+    relevance = _float_metric(result["answer_relevance"])
+    faithfulness = 1 - _float_metric(result["hallucination_rate"])
+    score = (0.35 * citation) + (0.25 * recall) + (0.2 * relevance) + (0.2 * faithfulness)
+    return round(max(0.0, min(score, 1.0)), 4)
+
+
+def _best_mode(mode_results: list[dict[str, object]]) -> str:
+    if not mode_results:
+        return ""
+    best = max(
+        mode_results,
+        key=lambda result: (
+            _float_metric(result.get("quality_score", 0.0)),
+            -_float_metric(result.get("avg_latency_ms", 0.0)),
+        ),
+    )
+    return str(best["mode"])
+
+
+def _float_metric(value: object) -> float:
+    if isinstance(value, int | float):
+        return float(value)
+    if isinstance(value, str):
+        return float(value)
+    return 0.0
 
 
 def _estimate_query_cost(question: str, evidence: list[str], answer: str) -> float:

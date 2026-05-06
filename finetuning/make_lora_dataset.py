@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from typing import Any, cast
 
 SYSTEM_MESSAGE = (
@@ -21,6 +22,10 @@ def make_lora_records(raft_examples: list[dict[str, object]]) -> list[dict[str, 
             }
         )
     return records
+
+
+def make_lora_jsonl(records: list[dict[str, object]]) -> str:
+    return "\n".join(json.dumps(record, ensure_ascii=False) for record in records) + "\n"
 
 
 def _format_context(example: dict[str, object]) -> str:
