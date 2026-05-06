@@ -29,5 +29,11 @@ class RaftExperimentRequest(BaseModel):
     base_model: str = Field(default="local-sim", min_length=1, max_length=80)
 
 
+class ThreeStatementModelRequest(BaseModel):
+    ticker: str = Field(min_length=1, max_length=12)
+    projection_years: int = Field(default=3, ge=1, le=5)
+    revenue_growth: float = Field(default=0.05, ge=-0.5, le=0.5)
+
+
 class ApiResponse(BaseModel):
     data: Any

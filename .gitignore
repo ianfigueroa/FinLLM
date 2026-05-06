@@ -26,4 +26,5 @@ frontend/dist/
 Thumbs.db
 
 .playwright-mcp/
+.run/
 finllm-desk-*.png

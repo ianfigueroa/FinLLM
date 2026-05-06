@@ -18,6 +18,7 @@ from api.schemas import (
     RaftExperimentRequest,
     SecUrlIngestionRequest,
     SecUrlMetadataRequest,
+    ThreeStatementModelRequest,
 )
 from evals.citation_eval import citation_correctness
 from evals.datasets import SAMPLE_EVAL_CASES
@@ -40,6 +41,7 @@ from ingestion.sec_url_loader import (
     load_sec_filing_url,
 )
 from ingestion.upload_loader import UploadedFileError, extract_upload_text
+from modeling.three_statement import build_three_statement_model
 from observability.structured_logger import StructuredLogger
 from retrieval.chroma_store import ChromaVectorStore
 from retrieval.embeddings import build_embedding_model, load_embedding_settings
@@ -82,6 +84,8 @@ def create_app() -> FastAPI:
             "http://localhost:5174",
             "http://127.0.0.1:5175",
             "http://localhost:5175",
+            "http://127.0.0.1:5190",
+            "http://localhost:5190",
         ],
         allow_credentials=False,
         allow_methods=["GET", "POST", "OPTIONS"],
@@ -316,6 +320,35 @@ def create_app() -> FastAPI:
                 "runs": state.eval_runs.recent(limit=20),
             }
         )
+
+    @app.post("/api/v1/models/three-statement", response_model=ApiResponse)
+    def build_model(request: ThreeStatementModelRequest) -> ApiResponse:
+        ticker = request.ticker.upper()
+        chunks = [
+            chunk
+            for chunk in state.store.all_chunks()
+            if (chunk.metadata.ticker or "").upper() == ticker
+        ]
+        if not chunks:
+            raise HTTPException(
+                status_code=400,
+                detail="Index documents for this ticker before building a model",
+            )
+
+        model = build_three_statement_model(
+            chunks,
+            ticker=ticker,
+            projection_years=request.projection_years,
+            revenue_growth=request.revenue_growth,
+        )
+        state.logger.event(
+            "model.three_statement.completed",
+            ticker=ticker,
+            extracted_sources=len(model.sources),
+            projection_years=request.projection_years,
+            confidence=model.confidence,
+        )
+        return ApiResponse(data=model.to_dict())
 
     @app.post("/api/v1/finetuning/raft", response_model=ApiResponse)
     def run_raft_experiment(request: RaftExperimentRequest) -> ApiResponse:
