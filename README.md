@@ -82,10 +82,11 @@ Example chat payload:
 Current local checks:
 
 - Python tests: 50 passed.
-- Python coverage: 96.40%.
+- Python coverage: 96.43%.
+- Ruff and MyPy: passed.
 - Chroma vector store integration: passed.
 - Frontend build: passed.
-- npm audit during install: 0 vulnerabilities.
+- pip-audit and npm audit: 0 vulnerabilities.
 
 See `reports/eval_results.md` for the evaluation summary.
 
