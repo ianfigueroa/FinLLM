@@ -25,6 +25,7 @@ from evals.hallucination_eval import hallucination_rate
 from evals.ragas_eval import answer_relevance, context_relevance, retrieval_precision
 from evals.regression_tests import run_regression_cases
 from evals.retrieval_eval import mean_reciprocal_rank, retrieval_recall_at_k
+from evals.run_store import EvalRunStore
 from evals.tool_eval import tool_call_success_rate
 from finetuning.evaluate_finetuned import simulate_finetuned_eval
 from finetuning.make_lora_dataset import make_lora_jsonl, make_lora_records
@@ -41,7 +42,7 @@ from ingestion.sec_url_loader import (
 from ingestion.upload_loader import UploadedFileError, extract_upload_text
 from observability.structured_logger import StructuredLogger
 from retrieval.chroma_store import ChromaVectorStore
-from retrieval.embeddings import HashEmbeddingModel
+from retrieval.embeddings import build_embedding_model, load_embedding_settings
 from retrieval.vector_store import InMemoryVectorStore, VectorStore
 
 DocumentInventoryKey = tuple[str | None, str | None, str | None, str | None, str]
@@ -49,12 +50,15 @@ DocumentInventoryKey = tuple[str | None, str | None, str | None, str | None, str
 
 class AppState:
     def __init__(self) -> None:
-        embedding_model = HashEmbeddingModel()
+        self.embedding_settings = load_embedding_settings()
+        embedding_model = build_embedding_model(self.embedding_settings)
         self.store: VectorStore
         self.vector_backend = os.getenv("FINLLM_VECTOR_BACKEND", "memory")
+        self.storage_dir = Path(os.getenv("FINLLM_STORAGE_DIR", "storage"))
+        self.eval_runs = EvalRunStore(self.storage_dir / "eval_runs.jsonl")
         if os.getenv("FINLLM_VECTOR_BACKEND") == "chroma":
             self.store = ChromaVectorStore(
-                path=os.getenv("FINLLM_STORAGE_DIR", "storage/chroma"),
+                path=str(self.storage_dir / "chroma"),
                 embedding_model=embedding_model,
             )
         else:
@@ -94,6 +98,7 @@ def create_app() -> FastAPI:
         return ApiResponse(
             data={
                 "vector_backend": state.vector_backend,
+                "embedding": state.embedding_settings.public_dict(),
                 "llm": state.llm_settings.public_dict(),
                 "retrieval_modes": ["basic_rag", "rag_rerank", "self_verify"],
                 "eval_metrics": [
@@ -287,18 +292,28 @@ def create_app() -> FastAPI:
         )
         pass_rate = sum(1 for result in results if result["passed"]) / max(len(results), 1)
         mode_results = _evaluate_modes(state)
+        payload = {
+            "regression_pass_rate": pass_rate,
+            "cases": results,
+            "mode_results": mode_results,
+            "best_mode": _best_mode(mode_results),
+        }
+        persisted = state.eval_runs.append(payload)
         state.logger.event(
             "eval.completed",
             cases=len(results),
             regression_pass_rate=pass_rate,
             modes=len(mode_results),
+            run_id=persisted["run_id"],
         )
+        return ApiResponse(data={**payload, "run_id": persisted["run_id"]})
+
+    @app.get("/api/v1/evals/history", response_model=ApiResponse)
+    def eval_history() -> ApiResponse:
         return ApiResponse(
             data={
-                "regression_pass_rate": pass_rate,
-                "cases": results,
-                "mode_results": mode_results,
-                "best_mode": _best_mode(mode_results),
+                "summary": state.eval_runs.summary(),
+                "runs": state.eval_runs.recent(limit=20),
             }
         )
 
