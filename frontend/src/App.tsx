@@ -13,6 +13,7 @@ import {
 import { useEffect, useMemo, useState } from 'react'
 
 import {
+  detectSecMetadata,
   getIngestionStatus,
   ingestSample,
   ingestSecUrl,
@@ -53,6 +54,7 @@ const LOADING_LABELS: Record<string, string> = {
 
 const EVIDENCE_PREVIEW_CHARS = 280
 const QUESTION_ROTATION_MS = 6000
+const SEC_METADATA_DEBOUNCE_MS = 700
 
 type SourceTab = (typeof SOURCE_TABS)[number]['id']
 type SearchScope = (typeof SEARCH_SCOPES)[number]['id']
@@ -85,12 +87,50 @@ export function App() {
   const [uploadFile, setUploadFile] = useState<File | null>(null)
   const [lastSource, setLastSource] = useState('No source indexed')
   const [loading, setLoading] = useState('')
+  const [metadataStatus, setMetadataStatus] = useState('')
   const [error, setError] = useState('')
   const [latencyMs, setLatencyMs] = useState(0)
 
   useEffect(() => {
     getIngestionStatus().then(setStatus).catch(() => setStatus({ chunks_indexed: 0, documents: [] }))
   }, [])
+
+  useEffect(() => {
+    const url = secForm.url.trim()
+    if (!isSecFilingCandidate(url)) {
+      setMetadataStatus('')
+      return
+    }
+
+    let active = true
+    setMetadataStatus('Waiting to detect')
+    const timer = window.setTimeout(() => {
+      setMetadataStatus('Detecting metadata')
+      detectSecMetadata(url)
+        .then((metadata) => {
+          if (!active) return
+          setSecForm((current) => {
+            if (current.url.trim() !== url) return current
+            return {
+              ...current,
+              ticker: metadata.ticker || current.ticker,
+              company: metadata.company || current.company,
+              form_type: metadata.form_type || current.form_type,
+              filing_date: metadata.filing_date || current.filing_date
+            }
+          })
+          setMetadataStatus(metadata.ticker ? `Detected ${metadata.ticker}` : 'Metadata detected')
+        })
+        .catch(() => {
+          if (active) setMetadataStatus('Metadata not detected')
+        })
+    }, SEC_METADATA_DEBOUNCE_MS)
+
+    return () => {
+      active = false
+      window.clearTimeout(timer)
+    }
+  }, [secForm.url])
 
   const selectedChunk = useMemo(() => {
     if (!chat || !selectedCitation) return null
@@ -132,13 +172,7 @@ export function App() {
   }, [questionSuggestions.length])
 
   const isBusy = Boolean(loading)
-  const canIndexSec = Boolean(
-    secForm.url.trim() &&
-      secForm.ticker.trim() &&
-      secForm.company.trim() &&
-      secForm.form_type.trim() &&
-      secForm.filing_date.trim()
-  )
+  const canIndexSec = Boolean(secForm.url.trim())
   const canUpload = Boolean(
     uploadFile &&
       uploadForm.ticker.trim() &&
@@ -177,6 +211,13 @@ export function App() {
       setStatus(await getIngestionStatus())
       setIndexedAt(formatClock())
       setSourceTab('sec')
+      setSecForm((current) => ({
+        ...current,
+        ticker: result.ticker ?? current.ticker,
+        company: result.company ?? current.company,
+        form_type: result.form_type ?? current.form_type,
+        filing_date: result.filing_date ?? current.filing_date
+      }))
       setLastSource(`${result.ticker ?? secForm.ticker.toUpperCase()} SEC filing`)
     })
   }
@@ -328,6 +369,7 @@ export function App() {
                   onChange={(event) => setSecForm({ ...secForm, url: event.target.value })}
                 />
               </label>
+              {metadataStatus && <div className="metadata-status">{metadataStatus}</div>}
               <div className="field-row compact">
                 <TextField label="Ticker" value={secForm.ticker} onChange={(ticker) => setSecForm({ ...secForm, ticker })} />
                 <TextField label="Form" value={secForm.form_type} onChange={(form_type) => setSecForm({ ...secForm, form_type })} />
@@ -695,6 +737,13 @@ function buildQuestionSuggestions(company: string, ticker: string): string[] {
     `Generate a cited research thesis for ${label}, separating facts from inference.`,
     `What evidence is available for demand, supply, or customer concentration risk at ${label}?`
   ]
+}
+
+function isSecFilingCandidate(url: string): boolean {
+  return (
+    url.startsWith('https://www.sec.gov/') &&
+    (url.includes('/Archives/edgar/data/') || url.includes('/ix?doc='))
+  )
 }
 
 function clamp(text: string, max: number): string {

@@ -65,7 +65,18 @@ export interface IngestionResult {
   documents_ingested: number
   chunks_indexed: number
   ticker?: string
+  company?: string
+  form_type?: string
+  filing_date?: string
   source_url?: string
+}
+
+export interface SecFilingMetadata {
+  source_url: string
+  ticker: string
+  company: string
+  form_type: string
+  filing_date: string
 }
 
 export interface IndexedDocument {

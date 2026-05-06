@@ -5,6 +5,7 @@ import type {
   IngestionStatus,
   IngestionResult,
   RaftExperimentResult,
+  SecFilingMetadata,
   SecUrlIngestionRequest
 } from './types'
 
@@ -30,6 +31,10 @@ export function ingestSample(): Promise<IngestionResult> {
 
 export function ingestSecUrl(payload: SecUrlIngestionRequest): Promise<IngestionResult> {
   return postJson('/api/v1/ingestions/sec-url', payload)
+}
+
+export function detectSecMetadata(url: string): Promise<SecFilingMetadata> {
+  return postJson('/api/v1/ingestions/sec-url/metadata', { url })
 }
 
 export async function uploadDocument(payload: DocumentUploadRequest): Promise<IngestionResult> {
