@@ -1,0 +1,26 @@
+services:
+  api:
+    build:
+      context: ..
+      dockerfile: infra/docker/Dockerfile.api
+    environment:
+      FINLLM_VECTOR_BACKEND: memory
+      FINLLM_STORAGE_DIR: /app/storage
+    ports:
+      - "8000:8000"
+    volumes:
+      - finllm-storage:/app/storage
+
+  frontend:
+    build:
+      context: ..
+      dockerfile: infra/docker/Dockerfile.frontend
+    environment:
+      VITE_API_BASE: http://127.0.0.1:8000
+    ports:
+      - "5173:5173"
+    depends_on:
+      - api
+
+volumes:
+  finllm-storage:
