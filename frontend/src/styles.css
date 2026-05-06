@@ -619,27 +619,39 @@ textarea {
 }
 
 .query-actions {
-  align-items: center;
-  justify-content: space-between;
+  align-items: flex-start;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) auto;
 }
 
 .sample-row {
-  flex-wrap: wrap;
+  align-items: stretch;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   min-width: 0;
+  width: 100%;
 }
 
 .sample-row button {
+  align-items: center;
   color: var(--muted);
   font-size: 12px;
-  min-height: 28px;
-  max-width: 290px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  justify-content: flex-start;
+  line-height: 1.35;
+  min-height: 34px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  padding: 7px 10px;
+  text-align: left;
+  white-space: normal;
+  width: 100%;
 }
 
 .submit-button {
   min-width: 108px;
+  align-self: start;
 }
 
 .answer-panel,
@@ -911,7 +923,8 @@ dd {
 
   .summary-grid,
   .app-grid,
-  .review-column {
+  .review-column,
+  .sample-row {
     grid-template-columns: 1fr;
   }
 
