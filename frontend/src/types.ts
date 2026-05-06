@@ -128,6 +128,41 @@ export interface RaftExperimentResult {
   eval_report: Record<string, unknown>
 }
 
+export interface ModelSource {
+  marker: string
+  chunk_id: string
+  source: string
+  source_url: string | null
+  section: string | null
+  excerpt: string
+}
+
+export interface StatementLine {
+  label: string
+  historical: Record<string, number>
+  sources: ModelSource[]
+  formula: string | null
+}
+
+export interface StatementTable {
+  label: string
+  lines: Record<string, StatementLine>
+}
+
+export interface ThreeStatementModelResult {
+  ticker: string
+  company: string | null
+  form_type: string | null
+  filing_date: string | null
+  statements: Record<string, StatementTable>
+  projections: Record<string, Record<string, Record<string, number>>>
+  assumptions: Record<string, number>
+  sources: ModelSource[]
+  limitations: string[]
+  confidence: number
+  disclaimer: string
+}
+
 export interface DocumentUploadRequest {
   ticker: string
   company: string

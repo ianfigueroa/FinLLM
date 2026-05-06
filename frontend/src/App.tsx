@@ -33,6 +33,9 @@ import type {
   IngestionStatus,
   RaftExperimentResult
 } from './types'
+import { FinancialModelPanel } from './FinancialModelPanel'
+import { clamp, formatClock, formatCost, modeLabel, retrievalMethod } from './formatters'
+import { buildQuestionSuggestions, isSecFilingCandidate } from './questionSuggestions'
 
 const FALLBACK_QUESTION = 'What are the main risk factors in the indexed filing?'
 
@@ -572,6 +575,8 @@ export function App() {
             )}
           </section>
 
+          <FinancialModelPanel ticker={activeSource.ticker} company={activeSource.company} />
+
           <section className="evidence-panel">
             <PanelTitle title="Retrieved evidence" detail={`${chat?.retrieved_chunks.length ?? 0} chunks`} />
             <div className="evidence-list">
@@ -760,61 +765,4 @@ function StatLine({ label, value, tone = '' }: { label: string; value: string; t
       <strong>{value}</strong>
     </div>
   )
-}
-
-function modeLabel(mode: string) {
-  return MODES.find((option) => option.id === mode)?.label ?? mode
-}
-
-function retrievalMethod(mode: string): string {
-  switch (mode) {
-    case 'basic_rag':
-      return 'BM25 + dense'
-    case 'rag_rerank':
-      return 'BM25 + dense - reranked'
-    case 'self_verify':
-      return 'BM25 + dense - reranked - verified'
-    default:
-      return mode
-  }
-}
-
-function buildQuestionSuggestions(company: string, ticker: string): string[] {
-  const label = company.trim() || ticker.trim() || 'the company'
-  const tickerLabel = ticker.trim() || label
-  return [
-    `What are the main risk factors ${label} discloses?`,
-    `Summarize ${label}'s revenue and margin drivers with citations.`,
-    `What does ${label} disclose about liquidity, debt, and capital allocation?`,
-    `Extract notable events, accounting changes, or operational updates for ${tickerLabel}.`,
-    `Generate a cited research thesis for ${label}, separating facts from inference.`,
-    `What evidence is available for demand, supply, or customer concentration risk at ${label}?`
-  ]
-}
-
-function isSecFilingCandidate(url: string): boolean {
-  return (
-    url.startsWith('https://www.sec.gov/') &&
-    (url.includes('/Archives/edgar/data/') || url.includes('/ix?doc='))
-  )
-}
-
-function clamp(text: string, max: number): string {
-  if (text.length <= max) return text
-  return `${text.slice(0, max).trimEnd()}...`
-}
-
-function formatClock(): string {
-  const now = new Date()
-  const hh = String(now.getHours()).padStart(2, '0')
-  const mm = String(now.getMinutes()).padStart(2, '0')
-  return `${hh}:${mm}`
-}
-
-function formatCost(summary: EvalSummary | null): string {
-  if (!summary || summary.mode_results.length === 0) return 'Not estimated'
-  const total = summary.mode_results.reduce((acc, m) => acc + m.estimated_cost_usd, 0)
-  const avg = total / summary.mode_results.length
-  if (avg <= 0) return 'Local'
-  return `est $${avg.toFixed(5)}`
 }
