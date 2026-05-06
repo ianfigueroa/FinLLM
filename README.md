@@ -10,12 +10,13 @@ The project is a working local MVP. It can:
 
 - ingest the bundled sample filing;
 - ingest SEC archive URLs, including `sec.gov/ix?doc=...` links;
+- auto-detect SEC ticker, company, form type, and filing period from Inline XBRL metadata;
 - upload `.txt` files and text-based `.pdf` filings;
 - retrieve chunks with metadata;
 - answer with citations that can be inspected in the UI;
 - compare basic RAG, RAG with reranking, and self-verification mode;
 - run calculator, metadata SQL, local market data, simple backtest, ratio, and restricted Python-analysis tools;
-- generate RAFT-style examples and simulated LoRA reports;
+- generate RAFT-style examples, export LoRA-style JSONL records, and simulate LoRA reports;
 - run local evals for retrieval precision, citation correctness, hallucination proxy, relevance, latency, cost, and tool success.
 
 The deliberately honest limits:
@@ -69,9 +70,9 @@ The containers include health checks, and the frontend waits for the API to beco
 
 ## What The UI Buttons Do
 
-`Index sample` loads `examples/sample_docs/acme_10k_2025.txt`, chunks it, embeds it, and stores it. The built-in evals use this sample, so run this before `Run eval`.
+`Load demo sample` loads `examples/sample_docs/acme_10k_2025.txt`, chunks it, embeds it, and stores it. The built-in evals use this sample, so run this before `Run eval`.
 
-`Index SEC URL` fetches a filing from SEC archives, cleans the HTML, chunks it, and stores it with ticker/company/form/date metadata. This works with Inline XBRL URLs such as:
+`Index SEC filing` fetches a filing from SEC archives, detects filing metadata from Inline XBRL, cleans the HTML, chunks it, and stores it with ticker/company/form/date metadata. This works with Inline XBRL URLs such as:
 
 ```text
 https://www.sec.gov/ix?doc=/Archives/edgar/data/0001045810/000104581026000021/nvda-20260125.htm
@@ -79,19 +80,23 @@ https://www.sec.gov/ix?doc=/Archives/edgar/data/0001045810/000104581026000021/nv
 
 `Upload text or PDF filing` indexes a local `.txt` or text-based `.pdf`. PDFs with only scanned images are rejected because there is no OCR layer yet.
 
-`Run eval` runs the local regression/eval suite. It compares the implemented modes and reports retrieval, citation, relevance, latency, cost, and tool-call metrics.
+`Run eval` runs the local regression/eval suite. It compares the implemented modes and reports retrieval, citation, relevance, latency, cost, tool-call, quality-score, and best-mode metrics.
 
-`RAFT` generates training-style examples from indexed chunks. Each example includes a question, relevant evidence, distractors, a cited answer, and metadata. The LoRA step is simulated so the data shape can be checked without a GPU.
+`Generate RAFT data` creates training-style examples from indexed chunks. Each example includes a question, relevant evidence, distractors, a cited answer, and metadata. The LoRA step is simulated so the data shape can be checked without a GPU.
+
+`Export JSONL` downloads LoRA-style instruction records as `finllm-raft-lora.jsonl`. That file is the handoff point for real fine-tuning experiments.
 
 ## API Endpoints
 
 - `POST /api/v1/ingestions/sample`
 - `POST /api/v1/ingestions/sec-url`
+- `POST /api/v1/ingestions/sec-url/metadata`
 - `POST /api/v1/documents/upload`
 - `GET /api/v1/ingestions/status`
 - `POST /api/v1/chat`
 - `POST /api/v1/evals`
 - `POST /api/v1/finetuning/raft`
+- `POST /api/v1/finetuning/raft/export`
 
 Example chat request:
 
@@ -140,7 +145,7 @@ The implementation supports that comparison in a local, measurable way:
 - `basic_rag`: direct vector retrieval.
 - `rag_rerank`: hybrid retrieval plus reranking.
 - `self_verify`: reranked retrieval plus citation verification and limitations.
-- `RAFT`: dataset generation plus simulated LoRA report.
+- `RAFT`: dataset generation, JSONL export, plus simulated LoRA report.
 
 Cost is tracked because it matters once hosted LLMs or paid rerankers are plugged in. In the current local setup, estimated cost is `$0.00`.
 
@@ -150,8 +155,8 @@ Latest local verification:
 
 - `ruff`: passed
 - `mypy`: passed
-- `pytest`: `74 passed`
-- coverage: about `95%`
+- `pytest`: `88 passed`
+- coverage: `94.97%`
 - frontend build: passed
 - `pip-audit`: no known vulnerabilities
 
