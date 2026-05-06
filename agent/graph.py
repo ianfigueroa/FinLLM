@@ -4,6 +4,7 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
+from agent.llm import AnswerGenerator, LLMGenerationError
 from agent.planner import Planner
 from agent.tools import BacktestTool, CalculatorTool, MarketDataTool, SQLMetadataTool, ToolResult
 from agent.verifier import CitationVerifier
@@ -37,9 +38,16 @@ class ToolCallRecord:
 
 
 class ResearchAgent:
-    def __init__(self, vector_store: VectorStore, *, mode: str = "basic_rag") -> None:
+    def __init__(
+        self,
+        vector_store: VectorStore,
+        *,
+        mode: str = "basic_rag",
+        answer_generator: AnswerGenerator | None = None,
+    ) -> None:
         self._vector_store = vector_store
         self._mode = mode
+        self._answer_generator = answer_generator
         self._planner = Planner()
         self._verifier = CitationVerifier()
         self._reranker = LexicalReranker()
@@ -63,7 +71,7 @@ class ResearchAgent:
 
         citations = build_citations(results)
         tool_calls = self._run_tools(question, filters)
-        answer = self._draft_grounded_answer(question, results, citations, tool_calls)
+        answer = self._generate_answer(question, results, citations, tool_calls)
         verification = self._verifier.verify(answer, citations)
         confidence = _confidence(results, verification)
 
@@ -127,6 +135,25 @@ class ResearchAgent:
                     lines.append(f"- {call.name}: unavailable ({call.error})")
         lines.append("Inference: Limited to the cited retrieved evidence.")
         return "\n".join(lines)
+
+    def _generate_answer(
+        self,
+        question: str,
+        results: list[SearchResult],
+        citations: list[Citation],
+        tool_calls: list[ToolCallRecord],
+    ) -> str:
+        if self._answer_generator is None:
+            return self._draft_grounded_answer(question, results, citations, tool_calls)
+        try:
+            return self._answer_generator.generate(
+                question=question,
+                results=results,
+                citations=citations,
+                tool_calls=tool_calls,
+            )
+        except LLMGenerationError:
+            return self._draft_grounded_answer(question, results, citations, tool_calls)
 
     def _run_tools(
         self,

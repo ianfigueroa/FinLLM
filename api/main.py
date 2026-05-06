@@ -10,6 +10,7 @@ from fastapi import FastAPI, File, Form, HTTPException, Response, UploadFile, st
 from fastapi.middleware.cors import CORSMiddleware
 
 from agent.graph import AgentResponse, ResearchAgent
+from agent.llm import build_answer_generator, load_llm_settings
 from agent.memory import ConversationMemory, MemoryTurn
 from api.schemas import (
     ApiResponse,
@@ -50,6 +51,7 @@ class AppState:
     def __init__(self) -> None:
         embedding_model = HashEmbeddingModel()
         self.store: VectorStore
+        self.vector_backend = os.getenv("FINLLM_VECTOR_BACKEND", "memory")
         if os.getenv("FINLLM_VECTOR_BACKEND") == "chroma":
             self.store = ChromaVectorStore(
                 path=os.getenv("FINLLM_STORAGE_DIR", "storage/chroma"),
@@ -57,6 +59,8 @@ class AppState:
             )
         else:
             self.store = InMemoryVectorStore(embedding_model)
+        self.llm_settings = load_llm_settings()
+        self.answer_generator = build_answer_generator(self.llm_settings)
         self.logger = StructuredLogger("finllm.api")
         self.memory = ConversationMemory()
 
@@ -84,6 +88,29 @@ def create_app() -> FastAPI:
     @app.get("/health", response_model=ApiResponse)
     def health() -> ApiResponse:
         return ApiResponse(data={"status": "ok"})
+
+    @app.get("/api/v1/system/status", response_model=ApiResponse)
+    def system_status() -> ApiResponse:
+        return ApiResponse(
+            data={
+                "vector_backend": state.vector_backend,
+                "llm": state.llm_settings.public_dict(),
+                "retrieval_modes": ["basic_rag", "rag_rerank", "self_verify"],
+                "eval_metrics": [
+                    "retrieval_precision",
+                    "retrieval_recall_at_5",
+                    "retrieval_mrr",
+                    "context_relevance",
+                    "citation_correctness",
+                    "hallucination_rate",
+                    "answer_relevance",
+                    "avg_latency_ms",
+                    "estimated_cost_usd",
+                    "tool_call_success_rate",
+                    "quality_score",
+                ],
+            }
+        )
 
     @app.post(
         "/api/v1/ingestions/sample",
@@ -213,7 +240,11 @@ def create_app() -> FastAPI:
     def chat(request: ChatRequest) -> ApiResponse:
         started = perf_counter()
         filters = request.filters or _infer_single_company_filter(request.question, state)
-        response = ResearchAgent(state.store, mode=request.mode).answer(
+        response = ResearchAgent(
+            state.store,
+            mode=request.mode,
+            answer_generator=state.answer_generator,
+        ).answer(
             request.question,
             filters=filters,
         )
