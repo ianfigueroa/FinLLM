@@ -5,6 +5,7 @@ from time import perf_counter
 from typing import Annotated
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile, status
+from fastapi.middleware.cors import CORSMiddleware
 
 from agent.graph import AgentResponse, ResearchAgent
 from api.schemas import ApiResponse, ChatRequest
@@ -27,6 +28,22 @@ class AppState:
 
 def create_app() -> FastAPI:
     app = FastAPI(title="FinLLM Research Agent", version="0.1.0")
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=[
+            "http://127.0.0.1:5180",
+            "http://localhost:5180",
+            "http://127.0.0.1:5173",
+            "http://localhost:5173",
+            "http://127.0.0.1:5174",
+            "http://localhost:5174",
+            "http://127.0.0.1:5175",
+            "http://localhost:5175",
+        ],
+        allow_credentials=False,
+        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_headers=["Content-Type"],
+    )
     state = AppState()
 
     @app.get("/health", response_model=ApiResponse)
