@@ -49,6 +49,46 @@ npm install
 npm run dev
 ```
 
+The API defaults to deterministic local embeddings and an in-memory vector store for reproducible tests. Use `retrieval/chroma_store.py` when persistent local vector storage is needed.
+
+## API Workflow
+
+Start the backend:
+
+```powershell
+uvicorn api.main:app --reload --host 127.0.0.1 --port 8000
+```
+
+Useful endpoints:
+
+- `POST /api/v1/ingestions/sample` indexes the bundled Acme 10-K sample.
+- `POST /api/v1/documents/upload` indexes a plain-text filing or transcript with metadata.
+- `POST /api/v1/chat` answers with citations and retrieved chunks.
+- `POST /api/v1/evals` runs the local regression harness.
+- `GET /api/v1/ingestions/status` returns indexed chunk count.
+
+Example chat payload:
+
+```json
+{
+  "question": "What risk factors did Acme disclose?",
+  "mode": "rag_rerank",
+  "filters": { "ticker": "ACME" }
+}
+```
+
+## Verification Snapshot
+
+Current local checks:
+
+- Python tests: 50 passed.
+- Python coverage: 96.40%.
+- Chroma vector store integration: passed.
+- Frontend build: passed.
+- npm audit during install: 0 vulnerabilities.
+
+See `reports/eval_results.md` for the evaluation summary.
+
 ## Design Principles
 
 - Answers must cite retrieved chunks. Unsupported answers should say evidence is insufficient.
@@ -65,3 +105,11 @@ npm run dev
 - RAGAS-style metrics: faithfulness, answer relevance, and context relevance.
 
 The detailed write-up lives in `reports/research_report.md`.
+
+## Docker Compose
+
+```powershell
+docker compose -f infra/docker-compose.yml up --build
+```
+
+This runs the FastAPI backend on `http://127.0.0.1:8000` and the Vite frontend on `http://127.0.0.1:5173`.
