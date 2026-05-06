@@ -68,6 +68,20 @@ export interface IngestionResult {
   source_url?: string
 }
 
+export interface IndexedDocument {
+  ticker: string | null
+  company: string | null
+  form_type: string | null
+  filing_date: string | null
+  source: string
+  chunk_count: number
+}
+
+export interface IngestionStatus {
+  chunks_indexed: number
+  documents: IndexedDocument[]
+}
+
 export interface SecUrlIngestionRequest {
   url: string
   ticker: string

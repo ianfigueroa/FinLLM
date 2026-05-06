@@ -21,7 +21,7 @@ import {
   sendChat,
   uploadDocument
 } from './api'
-import type { ChatResponse, Citation, EvalSummary, RaftExperimentResult } from './types'
+import type { ChatResponse, Citation, EvalSummary, IngestionStatus, RaftExperimentResult } from './types'
 
 const FALLBACK_QUESTION = 'What are the main risk factors in the indexed filing?'
 
@@ -63,7 +63,7 @@ export function App() {
   const [sourceTab, setSourceTab] = useState<SourceTab>('sec')
   const [searchScope, setSearchScope] = useState<SearchScope>('active')
   const [suggestionIndex, setSuggestionIndex] = useState(0)
-  const [status, setStatus] = useState({ chunks_indexed: 0 })
+  const [status, setStatus] = useState<IngestionStatus>({ chunks_indexed: 0, documents: [] })
   const [indexedAt, setIndexedAt] = useState<string>('')
   const [chat, setChat] = useState<ChatResponse | null>(null)
   const [evalSummary, setEvalSummary] = useState<EvalSummary | null>(null)
@@ -89,7 +89,7 @@ export function App() {
   const [latencyMs, setLatencyMs] = useState(0)
 
   useEffect(() => {
-    getIngestionStatus().then(setStatus).catch(() => setStatus({ chunks_indexed: 0 }))
+    getIngestionStatus().then(setStatus).catch(() => setStatus({ chunks_indexed: 0, documents: [] }))
   }, [])
 
   const selectedChunk = useMemo(() => {
@@ -367,6 +367,33 @@ export function App() {
             <span>Query scope</span>
             <strong>{searchScope === 'active' ? activeTickerFilter || 'Active source' : 'All corpus'}</strong>
           </div>
+
+          <section className="indexed-docs" aria-label="Indexed documents">
+            <div>
+              <strong>Indexed documents</strong>
+              <span>{status.documents.length} sources</span>
+            </div>
+            {status.documents.length ? (
+              <div className="doc-list">
+                {status.documents.map((document) => (
+                  <article
+                    key={`${document.ticker}-${document.form_type}-${document.filing_date}-${document.source}`}
+                  >
+                    <div>
+                      <strong>{document.ticker ?? 'DOC'}</strong>
+                      <span>{document.chunk_count} chunks</span>
+                    </div>
+                    <p>{document.company ?? 'Unknown company'}</p>
+                    <small>
+                      {document.form_type ?? 'Filing'} - {document.filing_date ?? 'No date'}
+                    </small>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <p className="empty-state">No documents indexed yet.</p>
+            )}
+          </section>
         </aside>
 
         <section className="research-column">

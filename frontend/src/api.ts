@@ -2,6 +2,7 @@ import type {
   ChatResponse,
   DocumentUploadRequest,
   EvalSummary,
+  IngestionStatus,
   IngestionResult,
   RaftExperimentResult,
   SecUrlIngestionRequest
@@ -71,7 +72,7 @@ export function runRaftExperiment(): Promise<RaftExperimentResult> {
   })
 }
 
-export async function getIngestionStatus(): Promise<{ chunks_indexed: number }> {
+export async function getIngestionStatus(): Promise<IngestionStatus> {
   const response = await fetch(`${API_BASE}/api/v1/ingestions/status`)
   if (!response.ok) {
     throw new Error(`API request failed with ${response.status}`)

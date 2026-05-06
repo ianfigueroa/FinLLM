@@ -343,6 +343,82 @@ h2 {
   font-weight: 500;
 }
 
+.indexed-docs {
+  border-top: 1px solid var(--border);
+  display: grid;
+  gap: 10px;
+  padding-top: 12px;
+}
+
+.indexed-docs > div:first-child {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+.indexed-docs > div:first-child strong {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.indexed-docs > div:first-child span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.doc-list {
+  display: grid;
+  gap: 8px;
+  max-height: 260px;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.doc-list article {
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+}
+
+.doc-list article > div {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+.doc-list strong,
+.doc-list span,
+.doc-list small {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.doc-list strong {
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.doc-list span {
+  color: var(--accent);
+  font-size: 11px;
+}
+
+.doc-list p {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+  margin: 0;
+}
+
+.doc-list small {
+  color: var(--subtle);
+  font-size: 11px;
+}
+
 .field,
 .field.full {
   display: grid;

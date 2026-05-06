@@ -24,7 +24,7 @@ from finetuning.make_lora_dataset import make_lora_records
 from finetuning.make_raft_dataset import make_raft_examples
 from finetuning.train_lora import simulate_lora_training
 from ingestion.chunker import chunk_document
-from ingestion.metadata import Document, DocumentMetadata
+from ingestion.metadata import Document, DocumentChunk, DocumentMetadata
 from ingestion.sec_loader import load_sec_filing
 from ingestion.sec_url_loader import load_sec_filing_url
 from ingestion.upload_loader import UploadedFileError, extract_upload_text
@@ -32,6 +32,8 @@ from observability.structured_logger import StructuredLogger
 from retrieval.chroma_store import ChromaVectorStore
 from retrieval.embeddings import HashEmbeddingModel
 from retrieval.vector_store import InMemoryVectorStore, VectorStore
+
+DocumentInventoryKey = tuple[str | None, str | None, str | None, str | None, str]
 
 
 class AppState:
@@ -177,7 +179,12 @@ def create_app() -> FastAPI:
     @app.get("/api/v1/ingestions/status", response_model=ApiResponse)
     def ingestion_status() -> ApiResponse:
         chunks = state.store.all_chunks()
-        return ApiResponse(data={"chunks_indexed": len(chunks)})
+        return ApiResponse(
+            data={
+                "chunks_indexed": len(chunks),
+                "documents": _indexed_documents(chunks),
+            }
+        )
 
     @app.post("/api/v1/chat", response_model=ApiResponse)
     def chat(request: ChatRequest) -> ApiResponse:
@@ -305,6 +312,34 @@ def _agent_response_payload(response: AgentResponse) -> dict[str, object]:
         ],
         "verification": response.verification.__dict__,
     }
+
+
+def _indexed_documents(chunks: list[DocumentChunk]) -> list[dict[str, object]]:
+    documents: dict[DocumentInventoryKey, dict[str, object]] = {}
+    for chunk in chunks:
+        metadata = chunk.metadata
+        key = (
+            metadata.ticker,
+            metadata.company,
+            metadata.form_type,
+            metadata.filing_date,
+            metadata.source_url or metadata.source,
+        )
+        if key not in documents:
+            documents[key] = {
+                "ticker": metadata.ticker,
+                "company": metadata.company,
+                "form_type": metadata.form_type,
+                "filing_date": metadata.filing_date,
+                "source": metadata.source_url or metadata.source,
+                "chunk_count": 0,
+            }
+        chunk_count = documents[key]["chunk_count"]
+        documents[key]["chunk_count"] = (chunk_count if isinstance(chunk_count, int) else 0) + 1
+    return sorted(
+        documents.values(),
+        key=lambda row: (str(row["ticker"]), str(row["filing_date"]), str(row["source"])),
+    )
 
 
 def _answer_for_eval(
