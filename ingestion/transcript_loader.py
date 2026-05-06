@@ -26,4 +26,3 @@ def load_transcript(
             source_url=source_url,
         ),
     )
-

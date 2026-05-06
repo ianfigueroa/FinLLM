@@ -57,7 +57,4 @@ class InMemoryVectorStore:
 def _metadata_matches(chunk: DocumentChunk, filters: dict[str, str] | None) -> bool:
     if not filters:
         return True
-    for key, expected in filters.items():
-        if getattr(chunk.metadata, key, None) != expected:
-            return False
-    return True
+    return all(getattr(chunk.metadata, key, None) == expected for key, expected in filters.items())

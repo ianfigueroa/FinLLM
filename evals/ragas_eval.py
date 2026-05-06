@@ -25,4 +25,3 @@ def _term_overlap(left: str, right: str) -> float:
         return 0.0
     right_terms = set(tokenize(right))
     return round(len(left_terms & right_terms) / len(left_terms), 4)
-

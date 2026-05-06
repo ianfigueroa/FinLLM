@@ -25,7 +25,9 @@ class HybridSearch:
     ) -> list[SearchResult]:
         dense_results = {
             result.chunk.chunk_id: result
-            for result in self._vector_store.search(query, filters=filters, limit=max(limit * 4, limit))
+            for result in self._vector_store.search(
+                query, filters=filters, limit=max(limit * 4, limit)
+            )
         }
         sparse_scores = self._sparse_scores(query, filters)
         chunk_by_id = {chunk.chunk_id: chunk for chunk in self._vector_store.all_chunks()}
@@ -53,7 +55,10 @@ class HybridSearch:
         chunks = [
             chunk
             for chunk in self._vector_store.all_chunks()
-            if all(getattr(chunk.metadata, key, None) == value for key, value in (filters or {}).items())
+            if all(
+                getattr(chunk.metadata, key, None) == value
+                for key, value in (filters or {}).items()
+            )
         ]
         document_frequency: Counter[str] = Counter()
         chunk_terms = {}
@@ -71,7 +76,13 @@ class HybridSearch:
             for term in query_terms:
                 if counts[term] == 0:
                     continue
-                idf = math.log(1 + ((total_documents - document_frequency[term] + 0.5) / (document_frequency[term] + 0.5)))
+                idf = math.log(
+                    1
+                    + (
+                        (total_documents - document_frequency[term] + 0.5)
+                        / (document_frequency[term] + 0.5)
+                    )
+                )
                 score += idf * counts[term] / max(len(terms), 1)
             if score > 0:
                 scores[chunk.chunk_id] = score

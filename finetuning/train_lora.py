@@ -11,4 +11,3 @@ def simulate_lora_training(*, records: int, base_model: str) -> dict[str, object
             "Use this report to validate data shape before real LoRA training.",
         ],
     }
-

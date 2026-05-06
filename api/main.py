@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from time import perf_counter
+from typing import Annotated
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile, status
 
@@ -57,11 +58,11 @@ def create_app() -> FastAPI:
         status_code=status.HTTP_201_CREATED,
     )
     async def upload_document(
-        ticker: str = Form(..., min_length=1, max_length=12),
-        company: str = Form(..., min_length=1, max_length=120),
-        form_type: str = Form(..., min_length=1, max_length=32),
-        filing_date: str = Form(..., min_length=4, max_length=32),
-        file: UploadFile = File(...),
+        ticker: Annotated[str, Form(min_length=1, max_length=12)],
+        company: Annotated[str, Form(min_length=1, max_length=120)],
+        form_type: Annotated[str, Form(min_length=1, max_length=32)],
+        filing_date: Annotated[str, Form(min_length=4, max_length=32)],
+        file: Annotated[UploadFile, File()],
     ) -> ApiResponse:
         if file.content_type not in {"text/plain", "application/octet-stream"}:
             raise HTTPException(status_code=415, detail="Only plain text uploads are supported")

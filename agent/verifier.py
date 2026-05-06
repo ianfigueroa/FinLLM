@@ -6,4 +6,3 @@ from retrieval.citations import Citation, CitationValidation, validate_answer_ci
 class CitationVerifier:
     def verify(self, answer: str, citations: list[Citation]) -> CitationValidation:
         return validate_answer_citations(answer, citations)
-

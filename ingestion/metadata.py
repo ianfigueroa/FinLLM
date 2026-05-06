@@ -13,7 +13,7 @@ class DocumentMetadata:
     section: str | None = None
     source_url: str | None = None
 
-    def with_section(self, section: str | None) -> "DocumentMetadata":
+    def with_section(self, section: str | None) -> DocumentMetadata:
         return replace(self, section=section)
 
 
@@ -30,4 +30,3 @@ class DocumentChunk:
     metadata: DocumentMetadata
     start_char: int
     end_char: int
-

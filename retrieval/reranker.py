@@ -7,7 +7,9 @@ from retrieval.vector_store import SearchResult
 class LexicalReranker:
     """Rerank retrieved chunks by query term coverage and original score."""
 
-    def rerank(self, query: str, results: list[SearchResult], *, limit: int | None = None) -> list[SearchResult]:
+    def rerank(
+        self, query: str, results: list[SearchResult], *, limit: int | None = None
+    ) -> list[SearchResult]:
         query_terms = set(tokenize(query))
         if not query_terms:
             return results[:limit]
@@ -24,4 +26,3 @@ class LexicalReranker:
             SearchResult(chunk=result.chunk, score=score, rank=index)
             for index, (result, score) in enumerate(trimmed, start=1)
         ]
-

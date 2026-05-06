@@ -12,4 +12,3 @@ def hallucination_rate(answer: str, evidence: list[str]) -> float:
     evidence_terms = set(tokenize(" ".join(evidence)))
     unsupported = answer_terms - evidence_terms
     return round(len(unsupported) / len(answer_terms), 4)
-

@@ -72,7 +72,9 @@ class ResearchAgent:
     ) -> list[SearchResult]:
         if self._mode == "basic_rag":
             return self._vector_store.search(question, filters=filters, limit=limit)
-        results = HybridSearch(self._vector_store).search(question, filters=filters, limit=max(limit * 2, limit))
+        results = HybridSearch(self._vector_store).search(
+            question, filters=filters, limit=max(limit * 2, limit)
+        )
         return self._reranker.rerank(question, results, limit=limit)
 
     def _draft_grounded_answer(
@@ -110,7 +112,9 @@ class ResearchAgent:
 
 
 def _best_sentence(text: str, query_terms: set[str]) -> str:
-    sentences = [sentence.strip() for sentence in text.replace("\n", " ").split(".") if sentence.strip()]
+    sentences = [
+        sentence.strip() for sentence in text.replace("\n", " ").split(".") if sentence.strip()
+    ]
     if not sentences:
         return "Retrieved chunk contains no sentence-like evidence."
     return max(sentences, key=lambda sentence: len(set(tokenize(sentence)) & query_terms))

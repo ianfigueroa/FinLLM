@@ -51,4 +51,3 @@ def cosine_similarity(left: Sequence[float], right: Sequence[float]) -> float:
     if len(left) != len(right):
         raise ValueError("vectors must have the same dimensions")
     return sum(a * b for a, b in zip(left, right, strict=True))
-

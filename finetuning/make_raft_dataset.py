@@ -10,7 +10,7 @@ def make_raft_examples(
     distractor_count: int = 2,
 ) -> list[dict[str, object]]:
     examples: list[dict[str, object]] = []
-    for index, chunk in enumerate(chunks):
+    for chunk in chunks:
         for question_index in range(questions_per_chunk):
             distractors = [
                 _chunk_payload(candidate)
@@ -48,4 +48,3 @@ def _chunk_payload(chunk: DocumentChunk) -> dict[str, str]:
 
 def _first_sentence(text: str) -> str:
     return text.replace("\n", " ").split(".")[0].strip()
-

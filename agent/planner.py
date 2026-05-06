@@ -18,5 +18,6 @@ class Planner:
         reason = "financial research questions need retrieved evidence"
         if tool_required:
             reason = "question asks for analysis that may require a tool"
-        return Plan(retrieval_required=retrieval_required, tool_required=tool_required, reason=reason)
-
+        return Plan(
+            retrieval_required=retrieval_required, tool_required=tool_required, reason=reason
+        )

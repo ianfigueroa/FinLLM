@@ -21,4 +21,3 @@ def clean_text(text: str) -> str:
         cleaned_lines.append(line)
 
     return "\n".join(cleaned_lines)
-

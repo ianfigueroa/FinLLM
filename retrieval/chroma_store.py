@@ -60,7 +60,9 @@ class ChromaVectorStore:
             start=1,
         ):
             chunk = _metadata_from_chroma(chunk_id, text, metadata)
-            results.append(SearchResult(chunk=chunk, score=max(0.0, 1.0 - float(distance)), rank=rank))
+            results.append(
+                SearchResult(chunk=chunk, score=max(0.0, 1.0 - float(distance)), rank=rank)
+            )
         return results
 
 

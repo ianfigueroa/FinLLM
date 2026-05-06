@@ -107,21 +107,30 @@ class SQLMetadataTool(BaseTool):
     def run(self, payload: dict[str, Any]) -> ToolResult:
         query = str(payload.get("query", "")).strip()
         if not _is_read_only_select(query):
-            return ToolResult(ok=False, error="metadata_sql is read-only and only accepts SELECT queries")
+            return ToolResult(
+                ok=False, error="metadata_sql is read-only and only accepts SELECT queries"
+            )
 
         connection = sqlite3.connect(":memory:")
         connection.row_factory = sqlite3.Row
         try:
-            connection.execute(
-                "CREATE TABLE documents (ticker TEXT, company TEXT, form_type TEXT, filing_date TEXT, section TEXT, source TEXT)"
+            create_sql = (
+                "CREATE TABLE documents ("
+                "ticker TEXT, company TEXT, form_type TEXT, filing_date TEXT, "
+                "section TEXT, source TEXT)"
             )
+            insert_sql = (
+                "INSERT INTO documents VALUES "
+                "(:ticker, :company, :form_type, :filing_date, :section, :source)"
+            )
+            connection.execute(create_sql)
             connection.executemany(
-                "INSERT INTO documents VALUES (:ticker, :company, :form_type, :filing_date, :section, :source)",
+                insert_sql,
                 [_metadata_row(row) for row in self._rows],
             )
             rows = connection.execute(query).fetchall()
             return ToolResult(ok=True, output=[dict(row) for row in rows])
-        except sqlite3.Error as exc:
+        except sqlite3.Error:
             return ToolResult(ok=False, error="metadata query failed")
         finally:
             connection.close()
@@ -137,7 +146,9 @@ class MarketDataTool(BaseTool):
     }
 
     def __init__(self, prices_by_ticker: dict[str, list[dict[str, float | str]]]) -> None:
-        self._prices_by_ticker = {ticker.upper(): prices for ticker, prices in prices_by_ticker.items()}
+        self._prices_by_ticker = {
+            ticker.upper(): prices for ticker, prices in prices_by_ticker.items()
+        }
 
     def run(self, payload: dict[str, Any]) -> ToolResult:
         ticker = str(payload.get("ticker", "")).upper()
@@ -220,7 +231,11 @@ class PythonAnalysisTool(BaseTool):
             tree = ast.parse(code, mode="exec")
             _validate_python_subset(tree, self._allowed_nodes, set(self._allowed_functions))
             namespace: dict[str, Any] = {}
-            exec(compile(tree, "<finllm-python-analysis>", "exec"), {"__builtins__": self._allowed_functions}, namespace)
+            exec(
+                compile(tree, "<finllm-python-analysis>", "exec"),
+                {"__builtins__": self._allowed_functions},
+                namespace,
+            )
             return ToolResult(ok=True, output=namespace.get("result"))
         except (SyntaxError, ValueError, TypeError, ZeroDivisionError) as exc:
             return ToolResult(ok=False, error=str(exc))
@@ -233,7 +248,9 @@ def _eval_arithmetic(node: ast.AST, operators: dict[type[ast.AST], Any]) -> floa
         operator_fn = operators.get(type(node.op))
         if operator_fn is None:
             raise ValueError("unsupported arithmetic operator")
-        return operator_fn(_eval_arithmetic(node.left, operators), _eval_arithmetic(node.right, operators))
+        return operator_fn(
+            _eval_arithmetic(node.left, operators), _eval_arithmetic(node.right, operators)
+        )
     if isinstance(node, ast.UnaryOp):
         operator_fn = operators.get(type(node.op))
         if operator_fn is None:
@@ -252,7 +269,9 @@ def _positive_denominator(payload: dict[str, Any], field: str) -> float:
 def _is_read_only_select(query: str) -> bool:
     normalized = query.rstrip(";").strip().lower()
     blocked = ["insert", "update", "delete", "drop", "alter", "pragma", "attach", "detach"]
-    return normalized.startswith("select ") and not any(word in normalized.split() for word in blocked)
+    return normalized.startswith("select ") and not any(
+        word in normalized.split() for word in blocked
+    )
 
 
 def _metadata_row(row: dict[str, Any]) -> dict[str, Any]:

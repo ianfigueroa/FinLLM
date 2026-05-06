@@ -28,4 +28,3 @@ def load_sec_filing(
             source_url=source_url,
         ),
     )
-

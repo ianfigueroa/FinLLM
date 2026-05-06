@@ -13,4 +13,3 @@ class ChatRequest(BaseModel):
 
 class ApiResponse(BaseModel):
     data: Any
-

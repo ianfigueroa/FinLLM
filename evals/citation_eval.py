@@ -10,4 +10,3 @@ def citation_correctness(answer: str, allowed_markers: list[str]) -> float:
     allowed = set(allowed_markers)
     correct = sum(1 for marker in used_markers if marker in allowed)
     return round(correct / len(used_markers), 4)
-

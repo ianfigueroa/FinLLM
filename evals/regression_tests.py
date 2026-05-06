@@ -6,7 +6,6 @@ from evals.citation_eval import citation_correctness
 from evals.datasets import EvalCase
 from evals.ragas_eval import retrieval_precision
 
-
 AnswerFn = Callable[[EvalCase], tuple[str, list[str], list[str]]]
 
 

@@ -19,4 +19,3 @@ SAMPLE_EVAL_CASES = [
         expected_terms=["customer", "revenue", "risk"],
     )
 ]
-

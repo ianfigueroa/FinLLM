@@ -26,4 +26,3 @@ def load_fed_statement(
             source_url=source_url,
         ),
     )
-
