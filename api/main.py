@@ -9,6 +9,7 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 
 from agent.graph import AgentResponse, ResearchAgent
+from agent.memory import ConversationMemory, MemoryTurn
 from api.schemas import ApiResponse, ChatRequest, RaftExperimentRequest, SecUrlIngestionRequest
 from evals.citation_eval import citation_correctness
 from evals.datasets import SAMPLE_EVAL_CASES
@@ -34,6 +35,7 @@ class AppState:
     def __init__(self) -> None:
         self.store = InMemoryVectorStore(HashEmbeddingModel())
         self.logger = StructuredLogger("finllm.api")
+        self.memory = ConversationMemory()
 
 
 def create_app() -> FastAPI:
@@ -176,6 +178,14 @@ def create_app() -> FastAPI:
             latency_ms=latency_ms,
             estimated_cost_usd=0.0,
             citation_verification_passed=response.verification.passed,
+        )
+        state.memory.append(
+            MemoryTurn(
+                question=request.question,
+                answer=response.answer,
+                mode=request.mode,
+                citation_markers=[citation.marker for citation in response.citations],
+            )
         )
         return ApiResponse(data=_agent_response_payload(response))
 
