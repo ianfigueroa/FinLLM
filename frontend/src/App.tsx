@@ -298,6 +298,26 @@ export function App() {
           )}
 
           <div className="section-heading compact">
+            <h2>Tool calls</h2>
+            <span>{chat?.tool_calls.length ?? 0}</span>
+          </div>
+          {chat?.tool_calls.length ? (
+            <div className="tool-list">
+              {chat.tool_calls.map((call, index) => (
+                <article key={`${call.name}-${index}`}>
+                  <div>
+                    <strong>{call.name}</strong>
+                    <span>{call.ok ? 'ok' : 'failed'}</span>
+                  </div>
+                  <code>{JSON.stringify(call.output ?? call.error)}</code>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <p className="muted">No tools used for this response.</p>
+          )}
+
+          <div className="section-heading compact">
             <h2>Evaluation</h2>
             <CheckCircle2 size={16} />
           </div>

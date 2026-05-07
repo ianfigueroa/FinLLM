@@ -164,6 +164,7 @@ def create_app() -> FastAPI:
             mode=request.mode,
             retrieved_chunks=len(response.retrieved_chunks),
             citations=len(response.citations),
+            tool_calls=len(response.tool_calls),
             latency_ms=latency_ms,
             estimated_cost_usd=0.0,
             citation_verification_passed=response.verification.passed,
@@ -195,6 +196,7 @@ def _agent_response_payload(response: AgentResponse) -> dict[str, object]:
         "disclaimer": response.disclaimer,
         "mode": response.mode,
         "citations": [citation.__dict__ for citation in response.citations],
+        "tool_calls": [tool_call.__dict__ for tool_call in response.tool_calls],
         "retrieved_chunks": [
             {
                 "chunk_id": result.chunk.chunk_id,

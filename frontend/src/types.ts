@@ -23,6 +23,7 @@ export interface ChatResponse {
   disclaimer: string
   mode: string
   citations: Citation[]
+  tool_calls: ToolCall[]
   retrieved_chunks: RetrievedChunk[]
   verification: {
     passed: boolean
@@ -30,6 +31,14 @@ export interface ChatResponse {
     invented_markers: string[]
     missing_citations: boolean
   }
+}
+
+export interface ToolCall {
+  name: string
+  input: Record<string, unknown>
+  ok: boolean
+  output: unknown
+  error: string
 }
 
 export interface EvalSummary {

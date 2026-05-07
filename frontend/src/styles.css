@@ -458,6 +458,37 @@ dd {
   font-size: 13px;
 }
 
+.tool-list {
+  display: grid;
+  gap: 8px;
+}
+
+.tool-list article {
+  background: #0d1112;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px;
+}
+
+.tool-list div {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.tool-list strong {
+  font-size: 13px;
+}
+
+.tool-list code {
+  color: #d9e2e5;
+  display: block;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
 @media (max-width: 980px) {
   .layout,
   .metrics-strip,
