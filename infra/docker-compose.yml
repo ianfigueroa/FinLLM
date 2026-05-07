@@ -4,7 +4,7 @@ services:
       context: ..
       dockerfile: infra/docker/Dockerfile.api
     environment:
-      FINLLM_VECTOR_BACKEND: memory
+      FINLLM_VECTOR_BACKEND: chroma
       FINLLM_STORAGE_DIR: /app/storage
     ports:
       - "8000:8000"

@@ -1,6 +1,6 @@
 # FinLLM Research Agent
 
-FinLLM Research Agent is a retrieval-augmented financial research platform for cited answers, tool-backed analysis, and hallucination/citation evaluation. The first implementation is offline-capable by default: deterministic embeddings and an in-memory vector store make tests and demos reproducible without paid APIs.
+FinLLM Research Agent is a retrieval-augmented financial research platform for cited answers, tool-backed analysis, and hallucination/citation evaluation. It is offline-capable by default: deterministic embeddings keep tests reproducible without paid APIs, and Chroma can be enabled for persistent local vector storage.
 
 ## What It Builds Toward
 
@@ -49,7 +49,7 @@ npm install
 npm run dev
 ```
 
-The API defaults to deterministic local embeddings and an in-memory vector store for reproducible tests. Use `retrieval/chroma_store.py` when persistent local vector storage is needed.
+The API defaults to deterministic local embeddings and an in-memory vector store for reproducible tests. Set `FINLLM_VECTOR_BACKEND=chroma` and `FINLLM_STORAGE_DIR=storage/chroma` for persistent local vector storage.
 
 ## API Workflow
 
@@ -75,6 +75,7 @@ Useful endpoints:
 - `POST /api/v1/documents/upload` indexes a plain-text filing or transcript with metadata.
 - `POST /api/v1/chat` answers with citations and retrieved chunks.
 - `POST /api/v1/evals` runs the local regression harness.
+- `POST /api/v1/finetuning/raft` generates RAFT examples and simulated LoRA reports.
 - `GET /api/v1/ingestions/status` returns indexed chunk count.
 
 Example chat payload:
@@ -103,8 +104,8 @@ Example SEC URL ingestion payload:
 
 Current local checks:
 
-- Python tests: 56 passed.
-- Python coverage: 95.53%.
+- Python tests: 63 passed.
+- Python coverage: 95.52%.
 - Ruff and MyPy: passed.
 - Chroma vector store integration: passed.
 - Frontend build: passed.
