@@ -3,14 +3,14 @@ import {
   CheckCircle2,
   Clock3,
   Database,
-  FileSearch,
+  Link2,
   Play,
   Send,
   ShieldCheck
 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 
-import { getIngestionStatus, ingestSample, runEval, sendChat } from './api'
+import { getIngestionStatus, ingestSample, ingestSecUrl, runEval, sendChat } from './api'
 import type { ChatResponse, Citation, EvalSummary } from './types'
 
 const SAMPLE_QUESTIONS = [
@@ -32,6 +32,14 @@ export function App() {
   const [chat, setChat] = useState<ChatResponse | null>(null)
   const [evalSummary, setEvalSummary] = useState<EvalSummary | null>(null)
   const [selectedCitation, setSelectedCitation] = useState<Citation | null>(null)
+  const [secForm, setSecForm] = useState({
+    url: 'https://www.sec.gov/ix?doc=/Archives/edgar/data/0001045810/000104581026000021/nvda-20260125.htm',
+    ticker: 'NVDA',
+    company: 'NVIDIA',
+    form_type: '10-K',
+    filing_date: '2026-01-25'
+  })
+  const [ingestedSource, setIngestedSource] = useState('')
   const [loading, setLoading] = useState('')
   const [error, setError] = useState('')
   const [latencyMs, setLatencyMs] = useState(0)
@@ -57,6 +65,15 @@ export function App() {
     await runAction('ingest', async () => {
       const result = await ingestSample()
       setStatus({ chunks_indexed: result.chunks_indexed })
+      setIngestedSource('ACME sample indexed')
+    })
+  }
+
+  async function handleSecUrlIngest() {
+    await runAction('sec-url', async () => {
+      const result = await ingestSecUrl(secForm)
+      setStatus(await getIngestionStatus())
+      setIngestedSource(`${result.ticker ?? secForm.ticker.toUpperCase()} indexed`)
     })
   }
 
@@ -123,6 +140,61 @@ export function App() {
         <Metric icon={<Clock3 size={17} />} label="Latency" value={`${latencyMs} ms`} />
         <Metric icon={<ShieldCheck size={17} />} label="Citation check" value={verificationLabel} />
         <Metric icon={<BarChart3 size={17} />} label="Confidence" value={confidence} />
+      </section>
+
+      <section className="ingest-panel">
+        <div className="ingest-heading">
+          <div>
+            <h2>Document ingestion</h2>
+            <p>SEC archive source and filing metadata.</p>
+          </div>
+          <span>{ingestedSource || 'SEC URLs only'}</span>
+        </div>
+        <div className="ingest-grid">
+          <label className="url-field">
+            <span>SEC filing URL</span>
+            <input
+              value={secForm.url}
+              onChange={(event) => setSecForm({ ...secForm, url: event.target.value })}
+            />
+          </label>
+          <label>
+            <span>Ticker</span>
+            <input
+              value={secForm.ticker}
+              onChange={(event) => setSecForm({ ...secForm, ticker: event.target.value })}
+            />
+          </label>
+          <label>
+            <span>Company</span>
+            <input
+              value={secForm.company}
+              onChange={(event) => setSecForm({ ...secForm, company: event.target.value })}
+            />
+          </label>
+          <label>
+            <span>Form</span>
+            <input
+              value={secForm.form_type}
+              onChange={(event) => setSecForm({ ...secForm, form_type: event.target.value })}
+            />
+          </label>
+          <label>
+            <span>Filing date</span>
+            <input
+              value={secForm.filing_date}
+              onChange={(event) => setSecForm({ ...secForm, filing_date: event.target.value })}
+            />
+          </label>
+          <button
+            className="primary-action ingest-submit"
+            title="Index SEC filing URL"
+            onClick={handleSecUrlIngest}
+            disabled={loading === 'sec-url' || !secForm.url.trim()}
+          >
+            <Link2 size={16} /> Index SEC URL
+          </button>
+        </div>
       </section>
 
       <section className="layout">

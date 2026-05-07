@@ -36,3 +36,18 @@ export interface EvalSummary {
   regression_pass_rate: number
   cases: Array<Record<string, unknown>>
 }
+
+export interface IngestionResult {
+  documents_ingested: number
+  chunks_indexed: number
+  ticker?: string
+  source_url?: string
+}
+
+export interface SecUrlIngestionRequest {
+  url: string
+  ticker: string
+  company: string
+  form_type: string
+  filing_date: string
+}

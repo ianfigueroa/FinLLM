@@ -59,9 +59,19 @@ Start the backend:
 uvicorn api.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
+If another local project already owns port `8000`, use a different API port and point Vite at it:
+
+```powershell
+py -3 -m uvicorn api.main:app --host 127.0.0.1 --port 8010
+cd frontend
+$env:VITE_API_BASE="http://127.0.0.1:8010"
+npm run dev -- --host 127.0.0.1 --port 5180 --strictPort
+```
+
 Useful endpoints:
 
 - `POST /api/v1/ingestions/sample` indexes the bundled Acme 10-K sample.
+- `POST /api/v1/ingestions/sec-url` fetches and indexes an SEC archive filing URL.
 - `POST /api/v1/documents/upload` indexes a plain-text filing or transcript with metadata.
 - `POST /api/v1/chat` answers with citations and retrieved chunks.
 - `POST /api/v1/evals` runs the local regression harness.
@@ -77,16 +87,28 @@ Example chat payload:
 }
 ```
 
+Example SEC URL ingestion payload:
+
+```json
+{
+  "url": "https://www.sec.gov/ix?doc=/Archives/edgar/data/0001045810/000104581026000021/nvda-20260125.htm",
+  "ticker": "NVDA",
+  "company": "NVIDIA",
+  "form_type": "10-K",
+  "filing_date": "2026-01-25"
+}
+```
+
 ## Verification Snapshot
 
 Current local checks:
 
-- Python tests: 50 passed.
-- Python coverage: 96.43%.
+- Python tests: 56 passed.
+- Python coverage: 95.53%.
 - Ruff and MyPy: passed.
 - Chroma vector store integration: passed.
 - Frontend build: passed.
-- pip-audit and npm audit: 0 vulnerabilities.
+- Security audit note: run dependency audits in a clean project environment with a lockfile before deployment.
 
 See `reports/eval_results.md` for the evaluation summary.
 
