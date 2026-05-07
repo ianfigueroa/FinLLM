@@ -4,17 +4,19 @@ from pathlib import Path
 from time import perf_counter
 from typing import Annotated
 
+import httpx
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 
 from agent.graph import AgentResponse, ResearchAgent
-from api.schemas import ApiResponse, ChatRequest
+from api.schemas import ApiResponse, ChatRequest, SecUrlIngestionRequest
 from evals.datasets import SAMPLE_EVAL_CASES
 from evals.regression_tests import run_regression_cases
 from ingestion.chunker import chunk_document
 from ingestion.document_cleaner import clean_text
 from ingestion.metadata import Document, DocumentMetadata
 from ingestion.sec_loader import load_sec_filing
+from ingestion.sec_url_loader import load_sec_filing_url
 from observability.structured_logger import StructuredLogger
 from retrieval.embeddings import HashEmbeddingModel
 from retrieval.vector_store import InMemoryVectorStore
@@ -105,6 +107,44 @@ def create_app() -> FastAPI:
             ticker=ticker.upper(),
         )
         return ApiResponse(data={"documents_ingested": 1, "chunks_indexed": len(chunks)})
+
+    @app.post(
+        "/api/v1/ingestions/sec-url",
+        response_model=ApiResponse,
+        status_code=status.HTTP_201_CREATED,
+    )
+    def ingest_sec_url(request: SecUrlIngestionRequest) -> ApiResponse:
+        try:
+            document = load_sec_filing_url(
+                request.url,
+                ticker=request.ticker,
+                company=request.company,
+                form_type=request.form_type,
+                filing_date=request.filing_date,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except httpx.HTTPError as exc:
+            raise HTTPException(status_code=502, detail="SEC filing fetch failed") from exc
+
+        chunks = chunk_document(document, max_chars=420, overlap_chars=60)
+        state.store.upsert(chunks)
+        ticker = request.ticker.upper()
+        state.logger.event(
+            "ingestion.sec_url.completed",
+            documents=1,
+            chunks=len(chunks),
+            ticker=ticker,
+            source_url=document.metadata.source_url,
+        )
+        return ApiResponse(
+            data={
+                "documents_ingested": 1,
+                "chunks_indexed": len(chunks),
+                "ticker": ticker,
+                "source_url": document.metadata.source_url,
+            }
+        )
 
     @app.get("/api/v1/ingestions/status", response_model=ApiResponse)
     def ingestion_status() -> ApiResponse:

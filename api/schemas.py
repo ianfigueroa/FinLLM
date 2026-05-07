@@ -11,5 +11,13 @@ class ChatRequest(BaseModel):
     filters: dict[str, str] | None = None
 
 
+class SecUrlIngestionRequest(BaseModel):
+    url: str = Field(min_length=20, max_length=1_000)
+    ticker: str = Field(min_length=1, max_length=12)
+    company: str = Field(min_length=1, max_length=120)
+    form_type: str = Field(min_length=1, max_length=32)
+    filing_date: str = Field(min_length=4, max_length=32)
+
+
 class ApiResponse(BaseModel):
     data: Any
