@@ -71,6 +71,16 @@ class ChromaVectorStore:
             )
         return results
 
+    def all_chunks(self) -> list[DocumentChunk]:
+        raw = self._collection.get(include=["documents", "metadatas"])
+        ids = cast(list[str], raw.get("ids") or [])
+        documents = cast(list[str], raw.get("documents") or [])
+        metadatas = cast(list[dict[str, Any]], raw.get("metadatas") or [])
+        return [
+            _metadata_from_chroma(chunk_id, text, metadata)
+            for chunk_id, text, metadata in zip(ids, documents, metadatas, strict=True)
+        ]
+
 
 def _metadata_to_chroma(chunk: DocumentChunk) -> dict[str, str | int]:
     metadata = chunk.metadata

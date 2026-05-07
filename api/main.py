@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from time import perf_counter
 from typing import Annotated
@@ -27,13 +28,22 @@ from ingestion.metadata import Document, DocumentMetadata
 from ingestion.sec_loader import load_sec_filing
 from ingestion.sec_url_loader import load_sec_filing_url
 from observability.structured_logger import StructuredLogger
+from retrieval.chroma_store import ChromaVectorStore
 from retrieval.embeddings import HashEmbeddingModel
-from retrieval.vector_store import InMemoryVectorStore
+from retrieval.vector_store import InMemoryVectorStore, VectorStore
 
 
 class AppState:
     def __init__(self) -> None:
-        self.store = InMemoryVectorStore(HashEmbeddingModel())
+        embedding_model = HashEmbeddingModel()
+        self.store: VectorStore
+        if os.getenv("FINLLM_VECTOR_BACKEND") == "chroma":
+            self.store = ChromaVectorStore(
+                path=os.getenv("FINLLM_STORAGE_DIR", "storage/chroma"),
+                embedding_model=embedding_model,
+            )
+        else:
+            self.store = InMemoryVectorStore(embedding_model)
         self.logger = StructuredLogger("finllm.api")
         self.memory = ConversationMemory()
 

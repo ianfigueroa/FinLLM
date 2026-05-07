@@ -4,13 +4,13 @@ import math
 from collections import Counter
 
 from retrieval.embeddings import tokenize
-from retrieval.vector_store import InMemoryVectorStore, SearchResult
+from retrieval.vector_store import SearchResult, VectorStore
 
 
 class HybridSearch:
     """Combine dense vector search with local BM25-style sparse scoring."""
 
-    def __init__(self, vector_store: InMemoryVectorStore, *, dense_weight: float = 0.55) -> None:
+    def __init__(self, vector_store: VectorStore, *, dense_weight: float = 0.55) -> None:
         if not 0 <= dense_weight <= 1:
             raise ValueError("dense_weight must be between 0 and 1")
         self._vector_store = vector_store

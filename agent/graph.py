@@ -11,7 +11,7 @@ from retrieval.citations import Citation, CitationValidation, build_citations
 from retrieval.embeddings import tokenize
 from retrieval.hybrid_search import HybridSearch
 from retrieval.reranker import LexicalReranker
-from retrieval.vector_store import InMemoryVectorStore, SearchResult
+from retrieval.vector_store import SearchResult, VectorStore
 
 
 @dataclass(frozen=True)
@@ -37,7 +37,7 @@ class ToolCallRecord:
 
 
 class ResearchAgent:
-    def __init__(self, vector_store: InMemoryVectorStore, *, mode: str = "basic_rag") -> None:
+    def __init__(self, vector_store: VectorStore, *, mode: str = "basic_rag") -> None:
         self._vector_store = vector_store
         self._mode = mode
         self._planner = Planner()

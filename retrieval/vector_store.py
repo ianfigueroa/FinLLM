@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Protocol
 
 from ingestion.metadata import DocumentChunk
 from retrieval.embeddings import EmbeddingModel, cosine_similarity
@@ -11,6 +12,20 @@ class SearchResult:
     chunk: DocumentChunk
     score: float
     rank: int
+
+
+class VectorStore(Protocol):
+    def upsert(self, chunks: list[DocumentChunk]) -> None: ...
+
+    def search(
+        self,
+        query: str,
+        *,
+        filters: dict[str, str] | None = None,
+        limit: int = 8,
+    ) -> list[SearchResult]: ...
+
+    def all_chunks(self) -> list[DocumentChunk]: ...
 
 
 class InMemoryVectorStore:
