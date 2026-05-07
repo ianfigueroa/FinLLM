@@ -9,13 +9,17 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 
 from agent.graph import AgentResponse, ResearchAgent
-from api.schemas import ApiResponse, ChatRequest, SecUrlIngestionRequest
+from api.schemas import ApiResponse, ChatRequest, RaftExperimentRequest, SecUrlIngestionRequest
 from evals.citation_eval import citation_correctness
 from evals.datasets import SAMPLE_EVAL_CASES
 from evals.hallucination_eval import hallucination_rate
 from evals.ragas_eval import answer_relevance, context_relevance, retrieval_precision
 from evals.regression_tests import run_regression_cases
 from evals.tool_eval import tool_call_success_rate
+from finetuning.evaluate_finetuned import simulate_finetuned_eval
+from finetuning.make_lora_dataset import make_lora_records
+from finetuning.make_raft_dataset import make_raft_examples
+from finetuning.train_lora import simulate_lora_training
 from ingestion.chunker import chunk_document
 from ingestion.document_cleaner import clean_text
 from ingestion.metadata import Document, DocumentMetadata
@@ -195,6 +199,45 @@ def create_app() -> FastAPI:
                 "regression_pass_rate": pass_rate,
                 "cases": results,
                 "mode_results": mode_results,
+            }
+        )
+
+    @app.post("/api/v1/finetuning/raft", response_model=ApiResponse)
+    def run_raft_experiment(request: RaftExperimentRequest) -> ApiResponse:
+        chunks = state.store.all_chunks()
+        if not chunks:
+            raise HTTPException(
+                status_code=400,
+                detail="Index documents before generating RAFT data",
+            )
+
+        examples = make_raft_examples(
+            chunks,
+            questions_per_chunk=1,
+            distractor_count=request.distractor_count,
+        )[: request.max_examples]
+        lora_records = make_lora_records(examples)
+        training_report = simulate_lora_training(
+            records=len(lora_records),
+            base_model=request.base_model,
+        )
+        eval_report = simulate_finetuned_eval(
+            model_id=str(training_report["model_id"]),
+            eval_cases=len(SAMPLE_EVAL_CASES),
+        )
+        state.logger.event(
+            "finetuning.raft.completed",
+            raft_examples=len(examples),
+            lora_records=len(lora_records),
+            status=training_report["status"],
+        )
+        return ApiResponse(
+            data={
+                "raft_examples": len(examples),
+                "lora_records": len(lora_records),
+                "preview": examples[:3],
+                "training_report": training_report,
+                "eval_report": eval_report,
             }
         )
 

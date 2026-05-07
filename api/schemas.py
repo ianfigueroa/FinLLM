@@ -19,5 +19,11 @@ class SecUrlIngestionRequest(BaseModel):
     filing_date: str = Field(min_length=4, max_length=32)
 
 
+class RaftExperimentRequest(BaseModel):
+    max_examples: int = Field(default=20, ge=1, le=200)
+    distractor_count: int = Field(default=2, ge=0, le=5)
+    base_model: str = Field(default="local-sim", min_length=1, max_length=80)
+
+
 class ApiResponse(BaseModel):
     data: Any

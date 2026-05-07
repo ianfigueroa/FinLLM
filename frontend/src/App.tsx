@@ -3,6 +3,7 @@ import {
   CheckCircle2,
   Clock3,
   Database,
+  FileSearch,
   Link2,
   Play,
   Send,
@@ -15,10 +16,11 @@ import {
   ingestSample,
   ingestSecUrl,
   runEval,
+  runRaftExperiment,
   sendChat,
   uploadDocument
 } from './api'
-import type { ChatResponse, Citation, EvalSummary } from './types'
+import type { ChatResponse, Citation, EvalSummary, RaftExperimentResult } from './types'
 
 const SAMPLE_QUESTIONS = [
   'What risk factors did Acme disclose?',
@@ -38,6 +40,7 @@ export function App() {
   const [status, setStatus] = useState({ chunks_indexed: 0 })
   const [chat, setChat] = useState<ChatResponse | null>(null)
   const [evalSummary, setEvalSummary] = useState<EvalSummary | null>(null)
+  const [raftSummary, setRaftSummary] = useState<RaftExperimentResult | null>(null)
   const [selectedCitation, setSelectedCitation] = useState<Citation | null>(null)
   const [secForm, setSecForm] = useState({
     url: 'https://www.sec.gov/ix?doc=/Archives/edgar/data/0001045810/000104581026000021/nvda-20260125.htm',
@@ -116,6 +119,12 @@ export function App() {
     })
   }
 
+  async function handleRaft() {
+    await runAction('raft', async () => {
+      setRaftSummary(await runRaftExperiment())
+    })
+  }
+
   async function runAction(name: string, action: () => Promise<void>) {
     setError('')
     setLoading(name)
@@ -152,6 +161,14 @@ export function App() {
             disabled={loading === 'eval'}
           >
             <BarChart3 size={16} /> Run eval
+          </button>
+          <button
+            className="secondary-action"
+            title="Generate RAFT experiment"
+            onClick={handleRaft}
+            disabled={loading === 'raft'}
+          >
+            <FileSearch size={16} /> RAFT
           </button>
         </div>
       </header>
@@ -412,6 +429,14 @@ export function App() {
               <span>{result.avg_latency_ms.toFixed(1)} ms</span>
             </div>
           ))}
+          {raftSummary && (
+            <div className="mode-result">
+              <strong>RAFT / LoRA</strong>
+              <span>{raftSummary.raft_examples} examples</span>
+              <span>{raftSummary.lora_records} records</span>
+              <span>{String(raftSummary.training_report.status)}</span>
+            </div>
+          )}
           <p className="muted">{chat?.disclaimer ?? 'Research outputs are not financial advice.'}</p>
         </aside>
       </section>

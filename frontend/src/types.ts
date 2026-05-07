@@ -74,6 +74,14 @@ export interface SecUrlIngestionRequest {
   filing_date: string
 }
 
+export interface RaftExperimentResult {
+  raft_examples: number
+  lora_records: number
+  preview: Array<Record<string, unknown>>
+  training_report: Record<string, unknown>
+  eval_report: Record<string, unknown>
+}
+
 export interface DocumentUploadRequest {
   ticker: string
   company: string

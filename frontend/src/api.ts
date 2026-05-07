@@ -3,6 +3,7 @@ import type {
   DocumentUploadRequest,
   EvalSummary,
   IngestionResult,
+  RaftExperimentResult,
   SecUrlIngestionRequest
 } from './types'
 
@@ -56,6 +57,14 @@ export function sendChat(question: string, mode: string): Promise<ChatResponse> 
 
 export function runEval(): Promise<EvalSummary> {
   return postJson('/api/v1/evals')
+}
+
+export function runRaftExperiment(): Promise<RaftExperimentResult> {
+  return postJson('/api/v1/finetuning/raft', {
+    max_examples: 20,
+    distractor_count: 2,
+    base_model: 'local-sim'
+  })
 }
 
 export async function getIngestionStatus(): Promise<{ chunks_indexed: number }> {
