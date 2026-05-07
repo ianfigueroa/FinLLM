@@ -10,7 +10,14 @@ import {
 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 
-import { getIngestionStatus, ingestSample, ingestSecUrl, runEval, sendChat } from './api'
+import {
+  getIngestionStatus,
+  ingestSample,
+  ingestSecUrl,
+  runEval,
+  sendChat,
+  uploadDocument
+} from './api'
 import type { ChatResponse, Citation, EvalSummary } from './types'
 
 const SAMPLE_QUESTIONS = [
@@ -39,6 +46,13 @@ export function App() {
     form_type: '10-K',
     filing_date: '2026-01-25'
   })
+  const [uploadForm, setUploadForm] = useState({
+    ticker: 'DOC',
+    company: 'Uploaded Company',
+    form_type: '10-K',
+    filing_date: '2026-01-01'
+  })
+  const [uploadFile, setUploadFile] = useState<File | null>(null)
   const [ingestedSource, setIngestedSource] = useState('')
   const [loading, setLoading] = useState('')
   const [error, setError] = useState('')
@@ -74,6 +88,15 @@ export function App() {
       const result = await ingestSecUrl(secForm)
       setStatus(await getIngestionStatus())
       setIngestedSource(`${result.ticker ?? secForm.ticker.toUpperCase()} indexed`)
+    })
+  }
+
+  async function handleUpload() {
+    if (!uploadFile) return
+    await runAction('upload', async () => {
+      const result = await uploadDocument({ ...uploadForm, file: uploadFile })
+      setStatus(await getIngestionStatus())
+      setIngestedSource(`${result.ticker ?? uploadForm.ticker.toUpperCase()} uploaded`)
     })
   }
 
@@ -193,6 +216,54 @@ export function App() {
             disabled={loading === 'sec-url' || !secForm.url.trim()}
           >
             <Link2 size={16} /> Index SEC URL
+          </button>
+        </div>
+        <div className="ingest-grid upload-grid">
+          <label className="url-field">
+            <span>Text filing</span>
+            <input
+              type="file"
+              accept=".txt,text/plain"
+              onChange={(event) => setUploadFile(event.target.files?.[0] ?? null)}
+            />
+          </label>
+          <label>
+            <span>Ticker</span>
+            <input
+              value={uploadForm.ticker}
+              onChange={(event) => setUploadForm({ ...uploadForm, ticker: event.target.value })}
+            />
+          </label>
+          <label>
+            <span>Company</span>
+            <input
+              value={uploadForm.company}
+              onChange={(event) => setUploadForm({ ...uploadForm, company: event.target.value })}
+            />
+          </label>
+          <label>
+            <span>Form</span>
+            <input
+              value={uploadForm.form_type}
+              onChange={(event) => setUploadForm({ ...uploadForm, form_type: event.target.value })}
+            />
+          </label>
+          <label>
+            <span>Filing date</span>
+            <input
+              value={uploadForm.filing_date}
+              onChange={(event) =>
+                setUploadForm({ ...uploadForm, filing_date: event.target.value })
+              }
+            />
+          </label>
+          <button
+            className="secondary-action ingest-submit"
+            title="Upload text filing"
+            onClick={handleUpload}
+            disabled={loading === 'upload' || !uploadFile}
+          >
+            <Database size={16} /> Upload text
           </button>
         </div>
       </section>
@@ -333,6 +404,14 @@ export function App() {
             <span>Estimated cost</span>
             <strong>$0.00 local</strong>
           </div>
+          {evalSummary?.mode_results.map((result) => (
+            <div className="mode-result" key={result.mode}>
+              <strong>{result.mode}</strong>
+              <span>retrieval {Math.round(result.retrieval_precision * 100)}%</span>
+              <span>cite {Math.round(result.citation_correctness * 100)}%</span>
+              <span>{result.avg_latency_ms.toFixed(1)} ms</span>
+            </div>
+          ))}
           <p className="muted">{chat?.disclaimer ?? 'Research outputs are not financial advice.'}</p>
         </aside>
       </section>

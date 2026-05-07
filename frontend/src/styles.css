@@ -187,6 +187,12 @@ h2 {
   grid-template-columns: minmax(260px, 2fr) 100px minmax(150px, 1fr) 90px 130px auto;
 }
 
+.upload-grid {
+  border-top: 1px solid var(--border);
+  margin-top: 12px;
+  padding-top: 12px;
+}
+
 .ingest-grid label {
   display: grid;
   gap: 5px;
@@ -212,6 +218,11 @@ input {
 input:focus {
   border-color: var(--accent);
   outline: none;
+}
+
+input[type="file"] {
+  color: var(--muted);
+  padding-top: 6px;
 }
 
 .ingest-submit {
@@ -456,6 +467,25 @@ dd {
 .eval-box strong {
   color: var(--success);
   font-size: 13px;
+}
+
+.mode-result {
+  border-top: 1px solid var(--border);
+  display: grid;
+  gap: 5px;
+  grid-template-columns: 1fr 1fr;
+  padding: 10px 0;
+}
+
+.mode-result strong {
+  color: var(--text);
+  font-size: 13px;
+  grid-column: 1 / -1;
+}
+
+.mode-result span {
+  color: var(--muted);
+  font-size: 12px;
 }
 
 .tool-list {

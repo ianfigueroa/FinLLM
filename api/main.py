@@ -10,8 +10,12 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from agent.graph import AgentResponse, ResearchAgent
 from api.schemas import ApiResponse, ChatRequest, SecUrlIngestionRequest
+from evals.citation_eval import citation_correctness
 from evals.datasets import SAMPLE_EVAL_CASES
+from evals.hallucination_eval import hallucination_rate
+from evals.ragas_eval import answer_relevance, context_relevance, retrieval_precision
 from evals.regression_tests import run_regression_cases
+from evals.tool_eval import tool_call_success_rate
 from ingestion.chunker import chunk_document
 from ingestion.document_cleaner import clean_text
 from ingestion.metadata import Document, DocumentMetadata
@@ -179,8 +183,20 @@ def create_app() -> FastAPI:
             lambda case: _answer_for_eval(agent, case.question),
         )
         pass_rate = sum(1 for result in results if result["passed"]) / max(len(results), 1)
-        state.logger.event("eval.completed", cases=len(results), regression_pass_rate=pass_rate)
-        return ApiResponse(data={"regression_pass_rate": pass_rate, "cases": results})
+        mode_results = _evaluate_modes(state)
+        state.logger.event(
+            "eval.completed",
+            cases=len(results),
+            regression_pass_rate=pass_rate,
+            modes=len(mode_results),
+        )
+        return ApiResponse(
+            data={
+                "regression_pass_rate": pass_rate,
+                "cases": results,
+                "mode_results": mode_results,
+            }
+        )
 
     return app
 
@@ -217,3 +233,52 @@ def _answer_for_eval(agent: ResearchAgent, question: str) -> tuple[str, list[str
         [result.chunk.chunk_id for result in response.retrieved_chunks],
         [citation.marker for citation in response.citations],
     )
+
+
+def _evaluate_modes(state: AppState) -> list[dict[str, object]]:
+    mode_results: list[dict[str, object]] = []
+    for mode in ["basic_rag", "rag_rerank", "self_verify"]:
+        latencies: list[float] = []
+        retrieval_scores: list[float] = []
+        context_scores: list[float] = []
+        citation_scores: list[float] = []
+        hallucination_scores: list[float] = []
+        relevance_scores: list[float] = []
+        tool_successes: list[bool] = []
+
+        agent = ResearchAgent(state.store, mode=mode)
+        for case in SAMPLE_EVAL_CASES:
+            started = perf_counter()
+            response = agent.answer(case.question)
+            latencies.append(round((perf_counter() - started) * 1_000, 4))
+            retrieved_ids = [result.chunk.chunk_id for result in response.retrieved_chunks]
+            evidence = [result.chunk.text for result in response.retrieved_chunks]
+            allowed_markers = [citation.marker for citation in response.citations]
+
+            retrieval_scores.append(retrieval_precision(retrieved_ids, case.expected_chunk_ids))
+            context_scores.append(context_relevance(case.question, evidence))
+            citation_scores.append(citation_correctness(response.answer, allowed_markers))
+            hallucination_scores.append(hallucination_rate(response.answer, evidence))
+            relevance_scores.append(answer_relevance(case.question, response.answer))
+            tool_successes.extend(call.ok for call in response.tool_calls)
+
+        mode_results.append(
+            {
+                "mode": mode,
+                "retrieval_precision": _average(retrieval_scores),
+                "context_relevance": _average(context_scores),
+                "citation_correctness": _average(citation_scores),
+                "hallucination_rate": _average(hallucination_scores),
+                "answer_relevance": _average(relevance_scores),
+                "avg_latency_ms": _average(latencies),
+                "estimated_cost_usd": 0.0,
+                "tool_call_success_rate": tool_call_success_rate(tool_successes),
+            }
+        )
+    return mode_results
+
+
+def _average(values: list[float]) -> float:
+    if not values:
+        return 0.0
+    return round(sum(values) / len(values), 4)

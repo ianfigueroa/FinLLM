@@ -44,6 +44,19 @@ export interface ToolCall {
 export interface EvalSummary {
   regression_pass_rate: number
   cases: Array<Record<string, unknown>>
+  mode_results: ModeEvalResult[]
+}
+
+export interface ModeEvalResult {
+  mode: string
+  retrieval_precision: number
+  context_relevance: number
+  citation_correctness: number
+  hallucination_rate: number
+  answer_relevance: number
+  avg_latency_ms: number
+  estimated_cost_usd: number
+  tool_call_success_rate: number
 }
 
 export interface IngestionResult {
@@ -59,4 +72,12 @@ export interface SecUrlIngestionRequest {
   company: string
   form_type: string
   filing_date: string
+}
+
+export interface DocumentUploadRequest {
+  ticker: string
+  company: string
+  form_type: string
+  filing_date: string
+  file: File
 }

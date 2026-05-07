@@ -1,4 +1,10 @@
-import type { ChatResponse, EvalSummary, IngestionResult, SecUrlIngestionRequest } from './types'
+import type {
+  ChatResponse,
+  DocumentUploadRequest,
+  EvalSummary,
+  IngestionResult,
+  SecUrlIngestionRequest
+} from './types'
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://127.0.0.1:8000'
 
@@ -22,6 +28,26 @@ export function ingestSample(): Promise<IngestionResult> {
 
 export function ingestSecUrl(payload: SecUrlIngestionRequest): Promise<IngestionResult> {
   return postJson('/api/v1/ingestions/sec-url', payload)
+}
+
+export async function uploadDocument(payload: DocumentUploadRequest): Promise<IngestionResult> {
+  const body = new FormData()
+  body.set('ticker', payload.ticker)
+  body.set('company', payload.company)
+  body.set('form_type', payload.form_type)
+  body.set('filing_date', payload.filing_date)
+  body.set('file', payload.file)
+
+  const response = await fetch(`${API_BASE}/api/v1/documents/upload`, {
+    method: 'POST',
+    body
+  })
+  if (!response.ok) {
+    const errorPayload = await response.json().catch(() => null)
+    const detail = errorPayload?.detail ? `: ${errorPayload.detail}` : ''
+    throw new Error(`API request failed with ${response.status}${detail}`)
+  }
+  return (await response.json()).data
 }
 
 export function sendChat(question: string, mode: string): Promise<ChatResponse> {
