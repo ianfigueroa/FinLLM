@@ -18,7 +18,8 @@ class LexicalReranker:
         for result in results:
             chunk_terms = set(tokenize(result.chunk.text))
             overlap = len(query_terms & chunk_terms) / len(query_terms)
-            scored.append((result, overlap + (0.15 * result.score)))
+            section_boost = _section_boost(query_terms, result)
+            scored.append((result, overlap + section_boost + (0.15 * result.score)))
 
         ranked = sorted(scored, key=lambda item: item[1], reverse=True)
         trimmed = ranked[:limit] if limit is not None else ranked
@@ -26,3 +27,10 @@ class LexicalReranker:
             SearchResult(chunk=result.chunk, score=score, rank=index)
             for index, (result, score) in enumerate(trimmed, start=1)
         ]
+
+
+def _section_boost(query_terms: set[str], result: SearchResult) -> float:
+    section = (result.chunk.metadata.section or "").lower()
+    if {"risk", "risks"} & query_terms and "risk factors" in section:
+        return 0.45
+    return 0.0
