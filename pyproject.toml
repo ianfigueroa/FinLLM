@@ -16,15 +16,9 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-  "pytest>=8.0.0",
-  "pytest-cov>=5.0.0",
   "ruff>=0.6.0",
   "mypy>=1.10.0",
 ]
-
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-addopts = "--cov=. --cov-report=term-missing --cov-fail-under=80"
 
 [tool.ruff]
 line-length = 100

@@ -12,6 +12,7 @@ import httpx
 
 from ingestion.document_cleaner import clean_text
 from ingestion.metadata import Document, DocumentMetadata
+from ingestion.xbrl_financial_facts import extract_inline_xbrl_financial_rows
 
 _SEC_HOSTS = {"sec.gov", "www.sec.gov"}
 _SEC_ARCHIVE_PREFIX = "/Archives/edgar/data/"
@@ -158,8 +159,11 @@ def load_sec_filing_from_html(
 ) -> Document:
     normalized_url = normalize_sec_filing_url(source_url)
     detected = extract_sec_filing_metadata(html, source_url=normalized_url)
+    financial_rows = extract_inline_xbrl_financial_rows(html)
+    visible_text = extract_sec_html_text(html)
+    text = f"{financial_rows}\n{visible_text}" if financial_rows else visible_text
     return Document(
-        text=extract_sec_html_text(html),
+        text=text,
         metadata=DocumentMetadata(
             source=normalized_url,
             ticker=(detected.ticker or ticker).upper(),

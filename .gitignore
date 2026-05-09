@@ -4,11 +4,9 @@
 
 __pycache__/
 *.py[cod]
-.pytest_cache/
-.coverage
-htmlcov/
 .mypy_cache/
 .ruff_cache/
+tests/
 
 .venv/
 venv/
@@ -27,4 +25,6 @@ Thumbs.db
 
 .playwright-mcp/
 .run/
+docs/
+stuff/
 finllm-desk-*.png

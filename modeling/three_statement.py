@@ -151,11 +151,9 @@ def _derive_free_cash_flow(
         return
     values = {}
     for year in years:
-        capex_value = capex.historical[year]
-        values[year] = (
-            operating.historical[year] - capex_value
-            if capex_value > 0
-            else operating.historical[year] + capex_value
+        values[year] = _free_cash_flow_value(
+            operating.historical[year],
+            capex.historical[year],
         )
     source_pool = [*operating.sources, *capex.sources]
     cash_flow["free_cash_flow"] = StatementLine(
@@ -203,8 +201,10 @@ def _build_projections(
             )
         if {"operating_cash_flow", "capital_expenditures"} <= set(cash_flow_statement):
             cash_flow_statement["free_cash_flow"] = _round_number(
-                cash_flow_statement["operating_cash_flow"]
-                + cash_flow_statement["capital_expenditures"]
+                _free_cash_flow_value(
+                    cash_flow_statement["operating_cash_flow"],
+                    cash_flow_statement["capital_expenditures"],
+                )
             )
 
         balance_sheet = _project_balance_sheet(prior_balance, revenue_growth)
@@ -315,3 +315,9 @@ def _confidence(
 def _round_number(value: float) -> float:
     rounded = round(value, 2)
     return int(rounded) if rounded.is_integer() else rounded
+
+
+def _free_cash_flow_value(operating_cash_flow: float, capital_expenditures: float) -> float:
+    if capital_expenditures > 0:
+        return operating_cash_flow - capital_expenditures
+    return operating_cash_flow + capital_expenditures
