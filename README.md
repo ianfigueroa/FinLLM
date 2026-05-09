@@ -77,6 +77,37 @@ npm run dev -- --host 127.0.0.1 --port 5180 --strictPort
 
 Then open `http://127.0.0.1:5180`, click the demo loader, and start asking questions.
 
+## Plugging in a local LLM (Ollama)
+
+The default path is extractive — it pulls sentences out of the retrieved chunks and stitches them with citation markers. That's reproducible and impossible to hallucinate, but it reads like bullet salad. If you want answers in real prose, point it at a local Ollama model.
+
+One-time setup:
+
+```powershell
+winget install Ollama.Ollama
+ollama serve
+ollama pull qwen2.5:7b-instruct
+```
+
+Then start the API with the LLM env vars set:
+
+```powershell
+$env:FINLLM_LLM_PROVIDER="ollama"
+$env:FINLLM_LLM_MODEL="qwen2.5:7b-instruct"
+$env:FINLLM_LLM_BASE_URL="http://127.0.0.1:11434"
+.\.venv-win\Scripts\python.exe -m uvicorn api.main:app --host 127.0.0.1 --port 8010
+```
+
+Confirm it's active:
+
+```powershell
+curl http://127.0.0.1:8010/api/v1/system/status
+```
+
+You should see `"provider": "ollama"` and `"mode": "generative"`. The retriever, reranker, citation builder, and verifier are unchanged — the LLM only swaps in for the answer-writing step, and if it errors out the system falls back to the extractive answerer automatically.
+
+OpenAI-compatible endpoints work the same way: set `FINLLM_LLM_PROVIDER=openai-compatible` plus `FINLLM_LLM_API_KEY` (or `OPENAI_API_KEY`) and optionally `FINLLM_LLM_BASE_URL` for a non-OpenAI host.
+
 ## Docker, if you'd rather
 
 ```powershell
