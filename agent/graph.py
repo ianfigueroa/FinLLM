@@ -333,22 +333,22 @@ def _ticker_from_question_or_filters(question: str, filters: dict[str, str] | No
     if filters and filters.get("ticker"):
         return filters["ticker"].upper()
     tickers = re.findall(r"\b[A-Z]{2,5}\b", question)
-    return tickers[0] if tickers else "ACME"
+    return tickers[0] if tickers else "NVDA"
 
 
 def _local_market_data() -> dict[str, list[dict[str, float | str]]]:
     return {
-        "ACME": [
-            {"date": "2025-01-01", "close": 100.0},
-            {"date": "2025-01-02", "close": 106.0},
-            {"date": "2025-01-03", "close": 103.0},
-            {"date": "2025-01-04", "close": 111.0},
-        ],
         "NVDA": [
-            {"date": "2025-01-01", "close": 140.0},
-            {"date": "2025-01-02", "close": 146.0},
-            {"date": "2025-01-03", "close": 142.0},
-            {"date": "2025-01-04", "close": 151.0},
+            {"date": "2026-01-21", "close": 140.0},
+            {"date": "2026-01-22", "close": 146.0},
+            {"date": "2026-01-23", "close": 142.0},
+            {"date": "2026-01-24", "close": 151.0},
+        ],
+        "AAPL": [
+            {"date": "2026-01-21", "close": 230.0},
+            {"date": "2026-01-22", "close": 232.5},
+            {"date": "2026-01-23", "close": 229.7},
+            {"date": "2026-01-24", "close": 235.1},
         ],
     }
 

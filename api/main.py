@@ -24,7 +24,7 @@ from evals.citation_eval import citation_correctness
 from evals.datasets import SAMPLE_EVAL_CASES
 from evals.hallucination_eval import hallucination_rate
 from evals.ragas_eval import answer_relevance, context_relevance, retrieval_precision
-from evals.regression_tests import run_regression_cases
+from evals.regression_cases import run_regression_cases
 from evals.retrieval_eval import mean_reciprocal_rank, retrieval_recall_at_k
 from evals.run_store import EvalRunStore
 from evals.tool_eval import tool_call_success_rate
@@ -127,13 +127,13 @@ def create_app() -> FastAPI:
         status_code=status.HTTP_201_CREATED,
     )
     def ingest_sample() -> ApiResponse:
-        sample_path = Path("examples/sample_docs/acme_10k_2025.txt")
+        sample_path = Path("examples/sample_docs/nvda_10k_2026.txt")
         document = load_sec_filing(
             sample_path,
-            ticker="ACME",
-            company="Acme Corp",
+            ticker="NVDA",
+            company="NVIDIA Corporation",
             form_type="10-K",
-            filing_date="2025-02-15",
+            filing_date="2026-02-21",
         )
         chunks = chunk_document(document, max_chars=420, overlap_chars=60)
         state.store.upsert(chunks)

@@ -14,10 +14,10 @@ class EvalCase:
 
 SAMPLE_EVAL_CASES = [
     EvalCase(
-        case_id="acme-risk-factors",
-        question="What customer concentration risk did Acme disclose?",
-        expected_chunk_ids=["ACME-10-K-2025-02-15-0001"],
-        expected_terms=["customer", "risk"],
-        filters={"ticker": "ACME"},
+        case_id="nvda-customer-concentration",
+        question="What customer concentration risk did NVIDIA disclose in its risk factors?",
+        expected_chunk_ids=["NVDA-10-K-2026-02-21-0005"],
+        expected_terms=["customer", "data center"],
+        filters={"ticker": "NVDA"},
     )
 ]

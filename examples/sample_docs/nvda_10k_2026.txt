@@ -1,0 +1,45 @@
+NVIDIA Corporation
+Form 10-K
+For the fiscal year ended January 25, 2026
+
+Item 1. Business
+
+NVIDIA pioneered accelerated computing to help solve the most challenging computational problems. We design and sell GPUs, networking platforms, CPUs, systems, and software for the data center, gaming, professional visualization, and automotive markets. Our accelerated computing platform combines silicon, systems, networking, and software, and is used by cloud service providers, enterprises, governments, and researchers to train and deploy generative AI, large language models, recommender systems, and scientific simulation workloads.
+
+We operate in two reportable segments: Compute & Networking, which includes our Data Center accelerated computing platforms, networking, automotive, Jetson for robotics and other embedded platforms, and software; and Graphics, which includes GeForce GPUs for gaming and PCs, the GeForce NOW game streaming service, Quadro/RTX GPUs for enterprise workstations, virtual GPU software, and automotive infotainment.
+
+Demand for our Hopper and Blackwell architectures continued to outpace supply during fiscal 2026 as customers built out generative AI training and inference clusters. We expanded the Blackwell platform with the GB200 NVL72 rack-scale system and broadened availability of NVIDIA Spectrum-X and Quantum-X800 InfiniBand networking. CUDA, NIM microservices, and the broader NVIDIA AI Enterprise software stack remained the foundation of our developer ecosystem.
+
+Item 1A. Risk Factors
+
+Our financial results depend significantly on demand from a small number of large data center customers. A material portion of our Compute & Networking revenue is concentrated in cloud service providers and consumer internet companies, and a reduction in their capital spending or a shift in their AI roadmap could materially reduce our revenue.
+
+We rely on a limited number of foundry, memory, and advanced packaging suppliers, including TSMC for wafer fabrication and CoWoS advanced packaging. Capacity constraints, geopolitical disruptions affecting Taiwan, or supplier quality issues could prevent us from meeting demand and could increase costs.
+
+Export controls administered by the U.S. Department of Commerce restrict the sale of certain advanced GPUs and networking products to customers in China and other regions. Additional or expanded controls could reduce sales, force us to redesign products, or accelerate competition from domestic suppliers in those regions.
+
+Generative AI workloads, model architectures, and customer software stacks are evolving rapidly. If customers shift toward custom silicon, alternative accelerator architectures, or open-source software ecosystems that reduce CUDA lock-in, our competitive position and gross margin could be impacted.
+
+Item 7. Management's Discussion and Analysis of Financial Condition and Results of Operations
+
+Revenue for fiscal 2026 grew substantially compared with fiscal 2025, driven by record Data Center revenue from Hopper and Blackwell shipments to large cloud customers, sovereign AI projects, and enterprise customers deploying generative AI. Gaming revenue benefited from a refresh of the GeForce RTX product line and steady demand for the installed base of CUDA-capable GPUs. Professional Visualization and Automotive each grew at a more modest pace.
+
+Gross margin expanded year over year due to favorable Data Center mix, improved yields on Blackwell, and software attach from NVIDIA AI Enterprise, partially offset by inventory provisions tied to product transitions and higher costs for advanced packaging. Operating expenses increased reflecting headcount investment in engineering and go-to-market for AI infrastructure customers.
+
+Operating cash flow grew meaningfully as accounts receivable collections kept pace with revenue and we continued to receive customer prepayments for Blackwell capacity. We invested in property and equipment, primarily for testing and validation infrastructure, and returned capital to shareholders through share repurchases and our quarterly cash dividend.
+
+We expect Data Center demand to remain strong as customers scale generative AI training clusters and begin large-scale inference deployments. Supply remains the principal constraint on near-term revenue, and we continue to work with our foundry and packaging partners to expand capacity for Blackwell and the next-generation Rubin platform.
+
+Item 8. Selected Financial Data
+
+Net revenue, fiscal 2026: 130,497 million U.S. dollars.
+Gross profit, fiscal 2026: 97,873 million U.S. dollars.
+Operating income, fiscal 2026: 81,453 million U.S. dollars.
+Net income, fiscal 2026: 72,880 million U.S. dollars.
+Cash, cash equivalents, and marketable securities at year end: 43,210 million U.S. dollars.
+Total assets at year end: 96,310 million U.S. dollars.
+Total liabilities at year end: 30,109 million U.S. dollars.
+Stockholders' equity at year end: 66,201 million U.S. dollars.
+Net cash provided by operating activities: 64,089 million U.S. dollars.
+Capital expenditures: 3,236 million U.S. dollars.
+Net cash used in financing activities: 42,360 million U.S. dollars.

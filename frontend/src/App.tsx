@@ -155,7 +155,7 @@ export function App() {
 
   const activeSource = useMemo(() => {
     if (sourceTab === 'demo') {
-      return { ticker: 'ACME', company: 'Acme Corp', formType: '10-K' }
+      return { ticker: 'NVDA', company: 'NVIDIA Corporation', formType: '10-K' }
     }
     if (sourceTab === 'upload') {
       return {
@@ -217,7 +217,7 @@ export function App() {
       setStatus(await getIngestionStatus())
       setIndexedAt(formatClock())
       setSourceTab('demo')
-      setLastSource(`ACME sample - ${result.chunks_indexed} chunks`)
+      setLastSource(`NVDA sample - ${result.chunks_indexed} chunks`)
     })
   }
 
@@ -393,8 +393,8 @@ export function App() {
           {sourceTab === 'demo' && (
             <div className="source-block">
               <div className="source-kicker">
-                <strong>ACME 10-K fixture</strong>
-                <span>Built-in eval source</span>
+                <strong>NVIDIA 10-K (FY2026) sample</strong>
+                <span>Bundled local fixture</span>
               </div>
               <button className="secondary-action full-button" onClick={handleIngest} disabled={isBusy}>
                 <Database size={15} /> Load demo sample
