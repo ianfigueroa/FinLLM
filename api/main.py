@@ -352,6 +352,7 @@ def create_app() -> FastAPI:
 
     @app.post("/api/v1/finetuning/raft", response_model=ApiResponse)
     def run_raft_experiment(request: RaftExperimentRequest) -> ApiResponse:
+        """Build RAFT examples and LoRA records. Training and eval are stubs: nothing is trained."""
         chunks = state.store.all_chunks()
         if not chunks:
             raise HTTPException(

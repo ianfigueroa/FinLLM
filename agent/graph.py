@@ -336,6 +336,8 @@ def _ticker_from_question_or_filters(question: str, filters: dict[str, str] | No
     return tickers[0] if tickers else "NVDA"
 
 
+# Fixture, not real market data: four made-up closes per ticker so the market-data
+# and backtest tools can run offline. There is no price feed wired in.
 def _local_market_data() -> dict[str, list[dict[str, float | str]]]:
     return {
         "NVDA": [
@@ -353,6 +355,7 @@ def _local_market_data() -> dict[str, list[dict[str, float | str]]]:
     }
 
 
+# Placeholder signal (alternates 0.8 / 0.2) so the backtest tool has something to run.
 def _sample_signals(prices: list[dict[str, float | str]]) -> list[dict[str, float | str]]:
     return [
         {"date": price["date"], "score": 0.8 if index % 2 == 0 else 0.2}

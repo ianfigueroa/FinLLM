@@ -51,15 +51,9 @@ the selected base model. A practical stack would use:
 - `accelerate`
 - optionally `bitsandbytes`
 
-Example shape:
-
-```powershell
-py -3 finetuning/train_lora.py --dataset data/finllm-raft-lora.jsonl --base-model Qwen/Qwen2.5-7B-Instruct
-py -3 finetuning/evaluate_finetuned.py --adapter outputs/finllm-lora
-```
-
-The current `train_lora.py` remains simulated until real GPU dependencies and a model license
-are added.
+`train_lora.py` and `evaluate_finetuned.py` are stubs. They return a placeholder report
+(`"status": "simulated"`, metrics `None`) so the API route works end to end, but nothing is
+trained. Real training would need those dependencies and a GPU.
 
 ## Evaluation Before Training
 

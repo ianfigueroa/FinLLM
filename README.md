@@ -6,9 +6,9 @@ Runs entirely on your machine by default. No API keys, no external calls. Ollama
 
 ## What it does
 
-- Loads the bundled NVIDIA 10-K sample, an SEC archive URL, a `.txt`, or a text-layer `.pdf`.
+- Loads the bundled sample (a short synthetic excerpt written in the style of NVIDIA's 10-K, not the real filing), an SEC archive URL, a `.txt`, or a text-layer `.pdf`.
 - Pulls Inline XBRL metadata and financial facts before chunking, so numerics stay structured.
-- Retrieves and answers in three modes — `basic_rag`, `rag_rerank`, `self_verify` — and cites every claim.
+- Retrieves and answers in three modes - `basic_rag`, `rag_rerank`, `self_verify` - and cites every claim.
 - Verifies that each citation marker is actually supported by its chunk; redrafts if it isn't.
 - Builds a source-backed three-statement scaffold and projects forward with a configurable growth rate.
 - Scores itself with retrieval / citation / relevance / hallucination-proxy / latency / cost metrics.
@@ -28,7 +28,7 @@ flowchart LR
     API --> MODEL[3-statement model]
 ```
 
-The default answerer is extractive — if the evidence doesn't say it, the answer doesn't say it. Boring on purpose.
+The default answerer is extractive - if the evidence doesn't say it, the answer doesn't say it. Boring on purpose.
 
 ## Run it
 
@@ -92,7 +92,8 @@ infra/         Docker, AWS notes
 
 - The extractive default isn't a trained financial LLM.
 - Self-verify checks citation behavior; it isn't a trained Self-RAG model.
-- RAFT and LoRA generate data and simulated reports — real training compute isn't wired in.
+- RAFT and LoRA only generate training data. `finetuning/train_lora.py` and `evaluate_finetuned.py` are stubs that return placeholder reports; no model is trained.
+- The market-data and backtest tools run on a hardcoded fixture in `agent/graph.py` (four made-up NVDA/AAPL closes and a placeholder signal), not live prices.
 - The three-statement model doesn't yet build debt, working-capital, depreciation, tax, share-count, or segment schedules.
 - Scanned PDFs need OCR before ingest.
 - The bundled eval is a regression fixture, not an expert-labeled benchmark.
