@@ -66,6 +66,13 @@ Restart the API. If the model errors, it falls back to extractive automatically.
 
 For an OpenAI-compatible endpoint: `FINLLM_LLM_PROVIDER=openai-compatible` plus `FINLLM_LLM_API_KEY`.
 
+Embeddings default to a local hash model with no dependencies. To use Ollama embeddings instead, `ollama pull nomic-embed-text` and set `FINLLM_EMBEDDING_PROVIDER=ollama`. For `mxbai-embed-large`, also set `FINLLM_EMBEDDING_MODEL=mxbai-embed-large` and `FINLLM_EMBEDDING_DIMENSIONS=1024`. The query/document prefixes each model card asks for are added automatically.
+
+## Retrieval eval
+
+`PYTHONPATH=. python evals/real_corpus_eval.py` scores 114 labeled questions over four 10-Ks (3,039 chunks), split into a 74-question DEV set used for tuning and a 40-question TEST set.
+With the default hash embeddings, `rag_rerank` hit@5 went from 0.23 to 0.73 on TEST (0.28 to 0.72 on all 114). The gain came from the reranker fix and from normalizing dense scores before fusion; the embedding prefixes were neutral.
+
 ## Docker
 
 ```powershell
