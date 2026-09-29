@@ -1,11 +1,17 @@
 from __future__ import annotations
 
-import re
-
 from retrieval.embeddings import tokenize
 from retrieval.vector_store import SearchResult
 
-_NUMBER_PATTERN = re.compile(r"\b\d+(?:[.,]\d+)?%?\b")
+# Function words carry no evidence; counting them let question boilerplate ("what was ...
+# in the ...") outrank the chunk that holds the answer.
+_STOPWORDS = frozenset(
+    {
+        "a", "an", "and", "are", "as", "at", "be", "by", "did", "do", "does", "for", "from",
+        "has", "have", "how", "in", "is", "it", "its", "of", "on", "or", "that", "the",
+        "their", "this", "to", "was", "were", "what", "when", "which", "who", "why", "with",
+    }
+)
 
 
 class LexicalReranker:
@@ -15,17 +21,17 @@ class LexicalReranker:
         self, query: str, results: list[SearchResult], *, limit: int | None = None
     ) -> list[SearchResult]:
         query_terms = set(tokenize(query))
-        if not query_terms:
+        content_terms = query_terms - _STOPWORDS
+        if not content_terms:
             return results[:limit]
 
         results = _section_filtered_results(query_terms, results)
         scored: list[tuple[SearchResult, float]] = []
         for result in results:
             chunk_terms = set(tokenize(result.chunk.text))
-            overlap = len(query_terms & chunk_terms) / len(query_terms)
+            overlap = len(content_terms & chunk_terms) / len(content_terms)
             section_boost = _section_boost(query_terms, result)
-            table_penalty = _table_penalty(result.chunk.text)
-            scored.append((result, overlap + section_boost + table_penalty + (0.15 * result.score)))
+            scored.append((result, overlap + section_boost + (0.15 * result.score)))
 
         ranked = sorted(scored, key=lambda item: item[1], reverse=True)
         trimmed = ranked[:limit] if limit is not None else ranked
@@ -81,11 +87,3 @@ def _is_mdna_section(section: str) -> bool:
         or "results of operations" in section
         or "liquidity and capital resources" in section
     )
-
-
-def _table_penalty(text: str) -> float:
-    terms = tokenize(text)
-    if not terms:
-        return 0.0
-    numeric_ratio = len(_NUMBER_PATTERN.findall(text)) / max(len(terms), 1)
-    return -0.35 if numeric_ratio > 0.25 else 0.0
