@@ -6,7 +6,6 @@ __pycache__/
 *.py[cod]
 .mypy_cache/
 .ruff_cache/
-tests/
 
 .venv/
 venv/
