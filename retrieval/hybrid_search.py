@@ -11,7 +11,7 @@ from retrieval.vector_store import SearchResult, VectorStore
 class HybridSearch:
     """Combine dense vector search with local BM25-style sparse scoring."""
 
-    def __init__(self, vector_store: VectorStore, *, dense_weight: float = 0.55) -> None:
+    def __init__(self, vector_store: VectorStore, *, dense_weight: float = 0.35) -> None:
         if not 0 <= dense_weight <= 1:
             raise ValueError("dense_weight must be between 0 and 1")
         self._vector_store = vector_store
@@ -24,22 +24,23 @@ class HybridSearch:
         filters: dict[str, str] | None = None,
         limit: int = 8,
     ) -> list[SearchResult]:
-        dense_results = {
-            result.chunk.chunk_id: result
-            for result in self._vector_store.search(
-                query, filters=filters, limit=max(limit * 4, limit)
-            )
-        }
+        dense_scores = _min_max_scores(
+            {
+                result.chunk.chunk_id: result.score
+                for result in self._vector_store.search(
+                    query, filters=filters, limit=max(limit * 4, limit)
+                )
+            }
+        )
         chunks = self._filtered_chunks(filters)
         sparse_scores = self._sparse_scores(query, chunks)
         section_scores = _section_intent_scores(query, chunks)
         chunk_by_id = {chunk.chunk_id: chunk for chunk in chunks}
-        candidate_ids = set(dense_results) | set(sparse_scores) | set(section_scores)
+        candidate_ids = set(dense_scores) | set(sparse_scores) | set(section_scores)
 
         scored: list[tuple[str, float]] = []
         for chunk_id in candidate_ids:
-            dense_result = dense_results.get(chunk_id)
-            dense_score = dense_result.score if dense_result else 0.0
+            dense_score = dense_scores.get(chunk_id, 0.0)
             sparse_score = sparse_scores.get(chunk_id, 0.0)
             section_score = section_scores.get(chunk_id, 0.0)
             score = (
@@ -108,6 +109,18 @@ def _normalize_scores(scores: dict[str, float]) -> dict[str, float]:
         return {}
     max_score = max(scores.values())
     return {key: value / max_score for key, value in scores.items()}
+
+
+def _min_max_scores(scores: dict[str, float]) -> dict[str, float]:
+    # Neural embedders put every candidate in a narrow cosine band (e.g. 0.68-0.74). Raw,
+    # that band adds a near-constant bonus to anything in the dense top-k and swamps the
+    # sparse signal, so rescale to 0-1 across the candidates like the sparse side.
+    if not scores:
+        return {}
+    low, high = min(scores.values()), max(scores.values())
+    if high == low:
+        return {key: 1.0 for key in scores}
+    return {key: (value - low) / (high - low) for key, value in scores.items()}
 
 
 def _section_intent_scores(query: str, chunks: list[DocumentChunk]) -> dict[str, float]:
