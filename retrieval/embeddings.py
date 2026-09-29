@@ -11,12 +11,27 @@ import httpx
 
 _TOKEN_PATTERN = re.compile(r"[A-Za-z][A-Za-z0-9_'-]*")
 
+# Instruction prefixes the model cards ask for; retrieval quality drops without them.
+_MODEL_PREFIXES = {
+    "nomic-embed-text": ("search_query: ", "search_document: "),
+    "mxbai-embed-large": ("Represent this sentence for searching relevant passages: ", ""),
+}
+
 
 class EmbeddingModel:
     dimensions: int
 
     def embed(self, text: str) -> list[float]:
         raise NotImplementedError
+
+    def embed_query(self, text: str) -> list[float]:
+        return self.embed(text)
+
+    def embed_document(self, text: str) -> list[float]:
+        return self.embed(text)
+
+    def embed_documents(self, texts: Sequence[str]) -> list[list[float]]:
+        return [self.embed_document(text) for text in texts]
 
 
 class EmbeddingProviderError(RuntimeError):
@@ -74,9 +89,29 @@ class OpenAICompatibleEmbeddingModel(EmbeddingModel):
     dimensions: int = 1536
     timeout_s: float = 20.0
     transport: httpx.BaseTransport | None = None
+    query_prefix: str = ""
+    document_prefix: str = ""
+    batch_size: int = 32
 
     def embed(self, text: str) -> list[float]:
-        payload = {"model": self.model, "input": text}
+        return self._request(text)[0]
+
+    def embed_query(self, text: str) -> list[float]:
+        return self.embed(f"{self.query_prefix}{text}")
+
+    def embed_document(self, text: str) -> list[float]:
+        return self.embed(f"{self.document_prefix}{text}")
+
+    def embed_documents(self, texts: Sequence[str]) -> list[list[float]]:
+        prefixed = [f"{self.document_prefix}{text}" for text in texts]
+        vectors: list[list[float]] = []
+        for start in range(0, len(prefixed), self.batch_size):
+            vectors.extend(self._request(prefixed[start : start + self.batch_size]))
+        return vectors
+
+    def _request(self, inputs: str | list[str]) -> list[list[float]]:
+        expected = len(inputs) if isinstance(inputs, list) else 1
+        payload = {"model": self.model, "input": inputs}
         try:
             with httpx.Client(transport=self.transport, timeout=self.timeout_s) as client:
                 response = client.post(
@@ -87,15 +122,22 @@ class OpenAICompatibleEmbeddingModel(EmbeddingModel):
                 response.raise_for_status()
             data = response.json()
             records = data.get("data")
-            if not isinstance(records, list) or not records:
+            if not isinstance(records, list) or len(records) != expected:
                 raise EmbeddingProviderError("embedding response did not include data")
-            embedding = records[0].get("embedding") if isinstance(records[0], dict) else None
-            if not isinstance(embedding, list):
+            if not all(isinstance(record, dict) for record in records):
                 raise EmbeddingProviderError("embedding response did not include a vector")
-            vector = [float(value) for value in embedding]
-            if self.dimensions and len(vector) != self.dimensions:
-                raise EmbeddingProviderError("embedding vector dimensions did not match settings")
-            return normalize(vector)
+            vectors = []
+            for record in sorted(records, key=lambda record: record.get("index", 0)):
+                embedding = record.get("embedding")
+                if not isinstance(embedding, list):
+                    raise EmbeddingProviderError("embedding response did not include a vector")
+                vector = [float(value) for value in embedding]
+                if self.dimensions and len(vector) != self.dimensions:
+                    raise EmbeddingProviderError(
+                        "embedding vector dimensions did not match settings"
+                    )
+                vectors.append(normalize(vector))
+            return vectors
         except httpx.HTTPError as exc:
             raise EmbeddingProviderError("embedding provider request failed") from exc
         except (TypeError, ValueError) as exc:
@@ -122,7 +164,9 @@ def load_embedding_settings() -> EmbeddingSettings:
             model=os.getenv("FINLLM_EMBEDDING_MODEL", "nomic-embed-text"),
             dimensions=_int_env("FINLLM_EMBEDDING_DIMENSIONS", 768),
             configured=True,
-            reason="Configured for a local Ollama embedding model; the Ollama server must be running.",
+            reason=(
+                "Configured for a local Ollama embedding model; the Ollama server must be running."
+            ),
             base_url=os.getenv("FINLLM_EMBEDDING_BASE_URL", "http://127.0.0.1:11434/v1"),
             api_key="ollama",
         )
@@ -159,13 +203,21 @@ def build_embedding_model(settings: EmbeddingSettings) -> EmbeddingModel:
     if settings.provider in {"openai-compatible", "ollama"} and settings.configured:
         if settings.base_url is None or settings.api_key is None:
             raise ValueError(f"{settings.provider} embeddings require base_url and api_key")
+        query_prefix, document_prefix = embedding_prefixes(settings.model)
         return OpenAICompatibleEmbeddingModel(
             base_url=settings.base_url,
             api_key=settings.api_key,
             model=settings.model,
             dimensions=settings.dimensions,
+            query_prefix=query_prefix,
+            document_prefix=document_prefix,
         )
     return HashEmbeddingModel(dimensions=settings.dimensions)
+
+
+def embedding_prefixes(model: str) -> tuple[str, str]:
+    """Return the (query, document) prefixes a model expects, ignoring any ":tag"."""
+    return _MODEL_PREFIXES.get(model.split(":", 1)[0], ("", ""))
 
 
 def tokenize(text: str) -> list[str]:

@@ -30,9 +30,9 @@ class ChromaVectorStore:
         self._collection.upsert(
             ids=[chunk.chunk_id for chunk in chunks],
             documents=[chunk.text for chunk in chunks],
-            embeddings=[  # type: ignore[arg-type]
-                self._embedding_model.embed(chunk.text) for chunk in chunks
-            ],
+            embeddings=self._embedding_model.embed_documents(  # type: ignore[arg-type]
+                [chunk.text for chunk in chunks]
+            ),
             metadatas=[_metadata_to_chroma(chunk) for chunk in chunks],
         )
 
@@ -47,7 +47,7 @@ class ChromaVectorStore:
             raise ValueError("limit must be positive")
 
         query_result = self._collection.query(
-            query_embeddings=[self._embedding_model.embed(query)],  # type: ignore[arg-type]
+            query_embeddings=[self._embedding_model.embed_query(query)],  # type: ignore[arg-type]
             n_results=limit,
             where=filters or None,  # type: ignore[arg-type]
         )

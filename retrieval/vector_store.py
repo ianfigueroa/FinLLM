@@ -36,8 +36,9 @@ class InMemoryVectorStore:
         self._records: dict[str, tuple[DocumentChunk, list[float]]] = {}
 
     def upsert(self, chunks: list[DocumentChunk]) -> None:
-        for chunk in chunks:
-            self._records[chunk.chunk_id] = (chunk, self._embedding_model.embed(chunk.text))
+        vectors = self._embedding_model.embed_documents([chunk.text for chunk in chunks])
+        for chunk, vector in zip(chunks, vectors, strict=True):
+            self._records[chunk.chunk_id] = (chunk, vector)
 
     def search(
         self,
@@ -49,7 +50,7 @@ class InMemoryVectorStore:
         if limit <= 0:
             raise ValueError("limit must be positive")
 
-        query_embedding = self._embedding_model.embed(query)
+        query_embedding = self._embedding_model.embed_query(query)
         scored: list[tuple[DocumentChunk, float]] = []
 
         for chunk, embedding in self._records.values():
