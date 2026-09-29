@@ -9,7 +9,7 @@ Runs entirely on your machine by default. No API keys, no external calls. Ollama
 - Loads the bundled sample (a short synthetic excerpt written in the style of NVIDIA's 10-K, not the real filing), an SEC archive URL, a `.txt`, or a text-layer `.pdf`.
 - Pulls Inline XBRL metadata and financial facts before chunking, so numerics stay structured.
 - Retrieves and answers in three modes - `basic_rag`, `rag_rerank`, `self_verify` - and cites every claim.
-- Verifies that each citation marker is actually supported by its chunk; redrafts if it isn't.
+- Checks that every citation marker points at a retrieved chunk and flags answers with missing or invented markers. It does not check that the chunk supports the sentence.
 - Builds a source-backed three-statement scaffold and projects forward with a configurable growth rate.
 - Scores itself with retrieval / citation / relevance / hallucination-proxy / latency / cost metrics.
 
@@ -70,7 +70,7 @@ Embeddings default to a local hash model with no dependencies. To use Ollama emb
 
 ## Retrieval eval
 
-`PYTHONPATH=. python evals/real_corpus_eval.py` scores 114 labeled questions over four 10-Ks (3,039 chunks), split into a 74-question DEV set used for tuning and a 40-question TEST set.
+`PYTHONPATH=. python evals/real_corpus_eval.py` scores 114 labeled questions over three real 10-Ks plus the synthetic NVDA excerpt (3,039 chunks), split into a 74-question DEV set used for tuning and a 40-question TEST set.
 With the default hash embeddings, `rag_rerank` hit@5 went from 0.23 to 0.73 on TEST (0.28 to 0.72 on all 114). The gain came from the reranker fix and from normalizing dense scores before fusion; the embedding prefixes were neutral.
 
 ## Docker
