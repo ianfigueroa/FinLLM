@@ -116,6 +116,17 @@ def load_embedding_settings() -> EmbeddingSettings:
             reason="Using deterministic local hash embeddings.",
         )
 
+    if provider == "ollama":
+        return EmbeddingSettings(
+            provider="ollama",
+            model=os.getenv("FINLLM_EMBEDDING_MODEL", "nomic-embed-text"),
+            dimensions=_int_env("FINLLM_EMBEDDING_DIMENSIONS", 768),
+            configured=True,
+            reason="Configured for a local Ollama embedding model; the Ollama server must be running.",
+            base_url=os.getenv("FINLLM_EMBEDDING_BASE_URL", "http://127.0.0.1:11434/v1"),
+            api_key="ollama",
+        )
+
     if provider == "openai-compatible":
         api_key = os.getenv("FINLLM_EMBEDDING_API_KEY") or os.getenv("OPENAI_API_KEY")
         configured = bool(api_key)
@@ -143,9 +154,11 @@ def load_embedding_settings() -> EmbeddingSettings:
 
 
 def build_embedding_model(settings: EmbeddingSettings) -> EmbeddingModel:
-    if settings.provider == "openai-compatible" and settings.configured:
+    # Ollama exposes an OpenAI-compatible /v1/embeddings endpoint, so it reuses the
+    # same client. It needs no real key; the placeholder is ignored by the server.
+    if settings.provider in {"openai-compatible", "ollama"} and settings.configured:
         if settings.base_url is None or settings.api_key is None:
-            raise ValueError("openai-compatible embeddings require base_url and api_key")
+            raise ValueError(f"{settings.provider} embeddings require base_url and api_key")
         return OpenAICompatibleEmbeddingModel(
             base_url=settings.base_url,
             api_key=settings.api_key,
